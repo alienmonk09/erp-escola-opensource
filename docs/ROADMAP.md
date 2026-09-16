@@ -34,6 +34,7 @@ Total: 24 tarefas. Dependência entre fases: Fase N só começa com a anterior m
 
 ### F-01 — Repositório, toolchain e ambiente local
 
+- **Status:** 🟡 em revisão — PR #1 (https://github.com/alienmonk09/erp-escola-opensource/pull/1), 2026-09-16.
 - **Dependências:** nenhuma (primeira tarefa).
 - **Requisitos atendidos:** SRS §17, §19, §27; RNF-005; RS-061.
 - **Contexto mínimo:** Monorepo da SRS §17. `mise.toml` fixa Go (≥1.25), Node, pnpm. `docker-compose.yml` sobe PostgreSQL local. `Taskfile.yml` tem as tasks do §19 (`contrato:lint`, `gerar:*`, `gerar:checar`, `dev`, `migrar`, `verificar`). Nenhum código de negócio aqui.

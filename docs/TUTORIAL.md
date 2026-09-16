@@ -87,7 +87,7 @@ Por quê? Três razões:
 
 ### 2.5 O papel de cada peça da stack (em linguagem simples)
 
-> A stack foi **definida pelo autor do projeto**. Você não escolhe — você entende. Detalhes técnicos nas ADRs (`adr/0001` a `adr/0004`).
+> A stack foi **definida pelo autor do projeto**. Você não escolhe — você entende. Detalhes técnicos nas ADRs (`../adr/0001` a `../adr/0004`).
 
 **Backend (o "cérebro" que valida e decide):**
 
@@ -164,7 +164,7 @@ Neste projeto acadêmico, **só existem dados fictícios** — nomes e CPFs inve
 | `PRD.md` | O **porquê**: problema, personas, escopo, histórias de usuário, prioridades, riscos, viabilidade | Para decidir o que entra no MVP |
 | `SRS.md` | O **o quê**: requisitos numerados, perfis, regras de negócio, modelo de dados, API | Para conferir se uma tarefa cumpre o que foi pedido |
 | `THREAT-MODEL.md` | O **e se der errado**: ameaças STRIDE e mitigação | Para entender por que tanta regra de segurança |
-| `adr/*.md` | O **por que assim**: decisões de arquitetura registradas | Para entender (ou contestar) uma escolha da stack |
+| `../adr/*.md` | O **por que assim**: decisões de arquitetura registradas | Para entender (ou contestar) uma escolha da stack |
 
 ## Capítulo 4 — As verificações automáticas (o "tribunal" do código)
 

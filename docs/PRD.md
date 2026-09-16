@@ -6,7 +6,7 @@
 | **Versão do documento** | 1.0 — Etapa 1 |
 | **Data** | 16/09/2026 |
 | **Autoria** | Requisitos, arquitetura e modelagem de ameaças conduzidos por IA (Freebuff), sob especificação e revisão de Jader Augusto Maciel Fonseca |
-| **Documentos relacionados** | `SRS.md`, `THREAT-MODEL.md`, `ROADMAP.md`, `TUTORIAL.md`, `adr/` |
+| **Documentos relacionados** | `SRS.md`, `THREAT-MODEL.md`, `ROADMAP.md`, `TUTORIAL.md`, `../adr/` |
 | **Fonte primária** | `docs/referencias/entrega-erp-sacre-coeur.md` e `docs/referencias/fluxograma-erp-sacre-coeur.png` |
 
 > **Como usar este documento.** Todos os requisitos e ameaças têm IDs rastreáveis: US-XXX (história), RF-XXX (funcional), RNF-XXX (não funcional), RS-XXX (segurança), RP-XXX (privacidade/LGPD), RN-XXX (regra de negócio), AM-XXX (ameaça). A matriz completa de rastreabilidade está na seção 9.
@@ -22,7 +22,7 @@ O produto existe para **provar duas teses**:
 1. **Viabilidade de custo zero:** um ERP completo, do zero até o deploy, construído com ferramentas, modelos de IA e hospedagem 100% gratuitas e/ou open source (Diretiva 3).
 2. **Viabilidade do desenvolvimento sem escrita humana de código:** a IA conduz o fluxo inteiro de criação do software; o papel humano é especificar, revisar e aprovar (Diretiva 4).
 
-A stack tecnológica já está definida pelo autor do projeto (seção "Stack definida" do prompt) e **não será reaberta** em nenhum documento desta etapa. As justificativas estão nos ADRs de `adr/0001` a `adr/0004`.
+A stack tecnológica já está definida pelo autor do projeto (seção "Stack definida" do prompt) e **não será reaberta** em nenhum documento desta etapa. As justificativas estão nos ADRs de `../adr/0001` a `../adr/0004`.
 
 ### 1.1 Problema
 
@@ -290,7 +290,7 @@ Formato: "Como… quero… para…", com critérios de aceite em Given/When/Then
 | R-02 | Vercel Services em beta muda de forma incompatível | Média | Alto | Plano B documentado em ADR (Render + Cloudflare Worker); não implementado por padrão |
 | R-03 | Modelos open source erram mais que modelos grandes; tarefas falham ou geram código inseguro | Alta | Médio | Tarefas pequenas e explícitas; verificações automáticas como gates do CI; código gerado tratado como não confiável até passar (Diretiva 4) |
 | R-04 | *Slopsquatting*: modelo inventa pacote inexistente e o instalador baixa um malicioso | Média | Alto | Lockfiles versionados, versões fixadas, dependências só da stack aprovada (Diretiva 2); qualquer dependência nova exige ADR + aprovação; OSV-Scanner e Gitleaks no CI |
-| R-05 | Prompt injection via issues, comentários de PR ou documentação externa | Média | Alto | Agentes tratam conteúdo externo como dados; só `AGENTS.md`, `ROADMAP.md` e prompt da tarefa definem o que fazer; agentes sem acesso a secrets de produção |
+| R-05 | Prompt injection via issues, comentários de PR ou documentação externa | Média | Alto | Agentes tratam conteúdo externo como dados; só `../AGENTS.md`, `ROADMAP.md` e prompt da tarefa definem o que fazer; agentes sem acesso a secrets de produção |
 | R-06 | Dado real de aluno/responsável entra em prompt, seed ou demo | Baixo | Crítico | Regra de "somente dados fictícios" em `AGENTS.md` e no SRS (RP-008); revisão humana em cada PR |
 | R-07 | PRs maliciosos de forks em repositório público | Média | Alto | Proteção contra deploy de forks ligada na Vercel; workflows sem `pull_request_target`; secrets não expostos a PRs de fork |
 | R-08 | Perda do autenticador TOTP por administrador | Baixo | Alto | Procedimento de recuperação no SRS (US-005, RS-008) |
@@ -301,7 +301,7 @@ Formato: "Como… quero… para…", com critérios de aceite em Given/When/Then
 
 - **Serviços:** GitHub (repo público, Actions, secrets), Vercel (Hobby, região São Paulo — a confirmar, ver Etapa 2), Neon (Free, `aws-sa-east-1`).
 - **Contas:** GitHub pessoal, Vercel, Neon, agente de IA (OpenCode Zen ou equivalente gratuito).
-- **Stack:** fixada no prompt e registrada nos ADRs `adr/0001`–`adr/0004`; **não reaberta**.
+- **Stack:** fixada no prompt e registrada nos ADRs `../adr/0001`–`../adr/0004`; **não reaberta**.
 - **Documentos:** `SRS.md` (requisitos), `THREAT-MODEL.md` (ameaças), `ROADMAP.md` (tarefas para agentes), `TUTORIAL.md` (material acadêmico).
 
 ## 7. Viabilidade da abordagem 100% gratuita

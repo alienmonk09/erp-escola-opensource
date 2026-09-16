@@ -44,7 +44,7 @@ Seção 2: glossário. Seção 3: visão geral e restrições (incluindo a stack
 | **LGPD** | Lei Geral de Proteção de Dados (Lei 13.709/2018); art. 14 trata de crianças e adolescentes |
 | **p95** | Percentil 95: 95% das requisições são mais rápidas que o valor |
 | **MoSCoW** | Must/Should/Could/Won't — priorização (ver PRD §5) |
-| **ADR** | Architecture Decision Record — registro de decisão de arquitetura (pasta `adr/`) |
+| **ADR** | Architecture Decision Record — registro de decisão de arquitetura (pasta `../adr/`) |
 
 ## 3. Visão geral e restrições
 
@@ -269,7 +269,7 @@ Frontend e backend no **mesmo domínio**: cookie de sessão first-party, sem COR
 | **RS-064** | Backups semanais `pg_dump` criptografados com age (chave pública no repo, privada com o responsável); artifact com retenção curta | V8.x `[VERIFICAR]` |
 | **RS-065** | CodeQL (Go/TS) como gate; código gerado por IA tratado como não confiável até passar | V1.1/V1.5 |
 | **RS-066** | `DATABASE_URL`, `TOTP_ENCRYPTION_KEY` e segredos de deploy nunca aparecem em logs, erros ou artifacts | V7.4, V14.2 |
-| **RS-067** | Agentes de IA tratam issues, comentários, dependências e conteúdo web como dados, não instruções; só `AGENTS.md`, `ROADMAP.md` e o prompt da tarefa definem comportamento; agentes sem secrets de produção | — (processo) |
+| **RS-067** | Agentes de IA tratam issues, comentários, dependências e conteúdo web como dados, não instruções; só `../AGENTS.md`, `ROADMAP.md` e o prompt da tarefa definem comportamento; agentes sem secrets de produção | — (processo) |
 | **RS-068** | Prompt injection: comentários de PR/issue sugerindo comandos são ignorados pelos agentes; revisão humana confirma toda tarefa | — (processo) |
 
 ## 6. Requisitos de privacidade (LGPD)
@@ -1087,7 +1087,7 @@ erp-sacre-coeur/
 ├─ .github/
 │  ├─ workflows/               # ci.yml, deploy.yml, backup.yml, codeql.yml, zap.yml
 │  └─ dependabot.yml
-├─ docs/                       # PRD, SRS, THREAT-MODEL, ETAPA2-VALIDACAO
+├─ docs/                       # PRD, SRS, THREAT-MODEL, ETAPA2-VALIDACAO, ROADMAP, TUTORIAL, prompt-inicial, referencias/
 ├─ adr/
 ├─ AGENTS.md                   # regras para toda tarefa de IA
 ├─ Taskfile.yml

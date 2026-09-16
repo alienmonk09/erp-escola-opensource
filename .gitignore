@@ -1,8 +1,50 @@
+# Estado local de agentes de IA (nunca versionar)
 .freebuff/
 .kilo/
 .opencode/
-node_modules/
-dist/
-*.local
+
+# Segredos e env local (RS-060) — só exemplos versionados
 .env
 .env.*
+*.local
+!.env.example
+
+# Dependências
+node_modules/
+frontend/node_modules/
+
+# Build e saída
+dist/
+frontend/dist/
+backend/bin/
+*.out
+
+# Go — testes e coverage
+*.test
+coverage.html
+coverage.out
+
+# Banco local (Docker Compose do `task dev`)
+*.dump
+*.sql.gz
+postgres-data/
+
+# Toolchain e deploy
+.vercel
+.mise/
+.task/
+mise.local.toml
+
+# Relatórios de teste/QA (gerados no CI local)
+test-results/
+playwright-report/
+blob-report/
+.lighthouseci/
+.zap/
+
+# OS e IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*~

@@ -1,6 +1,6 @@
 # Etapa 2 — Relatório de validação
 
-> **Status da Etapa 1:** concluída — `PRD.md`, `SRS.md`, `THREAT-MODEL.md`, `adr/0001`–`0004`, `TUTORIAL.md` (capítulos 1–4 e seção de lições).
+> **Status da Etapa 1:** concluída — `PRD.md`, `SRS.md`, `THREAT-MODEL.md`, `../adr/0001`–`0004`, `TUTORIAL.md` (capítulos 1–4 e seção de lições).
 > **Esta etapa não reabre a stack.** Apresenta apenas: bloqueios, incompatibilidades e confirmação do escopo do MVP.
 > **Aviso:** a busca na web estava indisponível durante esta execução, então **nenhum limite de plano foi confirmado ao vivo**. Tudo que não pôde ser confirmado está marcado `[VERIFICAR]` e consolidado no fim, para checagem rápida antes de iniciar a Etapa 3.
 
@@ -75,4 +75,4 @@ Reproduzo o escopo proposto na Etapa 1 (PRD §3) para sua confirmação:
 
 ---
 
-**Resolução:** escopo e suposições A-01…A-06 aprovados em 16/09/2026; pendências mantidas com `[VERIFICAR]` para checagem na fundação. **Etapa 3 concluída:** especificação fechada em SRS §16–§31, `AGENTS.md` e `adr/0005-plano-b-hospedagem.md`.
+**Resolução:** escopo e suposições A-01…A-06 aprovados em 16/09/2026; pendências mantidas com `[VERIFICAR]` para checagem na fundação. **Etapa 3 concluída:** especificação fechada em SRS §16–§31, `../AGENTS.md` e `../adr/0005-plano-b-hospedagem.md`.

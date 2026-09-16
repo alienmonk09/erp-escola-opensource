@@ -1,7 +1,7 @@
 # ROADMAP — ERP Escola Sacre Cœur des Enfants (Etapa 4)
 
 > **Etapa 4 — Plano para execução por IA.** Primeira fase é a **fundação**; nenhuma funcionalidade de negócio começa antes dela.
-> Fontes de verdade: `PRD.md`, `SRS.md` (§1–§31), `THREAT-MODEL.md`, `ETAPA2-VALIDACAO.md`, `AGENTS.md`, `adr/0001`–`0005`.
+> Fontes de verdade: `PRD.md`, `SRS.md` (§1–§31), `THREAT-MODEL.md`, `ETAPA2-VALIDACAO.md`, `../AGENTS.md`, `../adr/0001`–`0005`.
 > Convenção: **um PR = uma tarefa**. PR pequeno (revisão ≤ 30 min). Título em Conventional Commits com ID da tarefa.
 > Verificação local obrigatória antes de todo PR: `task verificar`. CI verde é gate (RS-060..062, RE-07).
 > Dados sempre fictícios (RE-06, RP-008). Nenhum segredo no repo (RS-060/066). Código gerado nunca editado à mão (SRS §19).
@@ -226,7 +226,7 @@ Total: 24 tarefas. Dependência entre fases: Fase N só começa com a anterior m
 - **Requisitos atendidos:** SRS §31 (itens 1–15); ETAPA2-VALIDACAO §4; B-01..B-05; I-01..I-10.
 - **Contexto mínimo:** Nenhum limite foi confirmado ao vivo. Esta tarefa resolve os 15 itens na documentação/painéis e registra o resultado em ADR ou na §31. Se B-01/B-03 falharem (dados fora do Brasil), acionar ADR-0005 ou registrar exceção para ambiente acadêmico fictício (nunca para operação real).
 - **Bibliotecas a usar:** nenhuma.
-- **Arquivos a criar ou alterar:** `SRS.md` §31 (marcar confirmados), `adr/0006-verificacoes-fundacao.md` (novo, se alguma decisão mudar), `vercel.json`/`mise.toml` (só se a doc exigir chave diferente).
+- **Arquivos a criar ou alterar:** `SRS.md` §31 (marcar confirmados), `../adr/0006-verificacoes-fundacao.md` (novo, se alguma decisão mudar), `vercel.json`/`mise.toml` (só se a doc exigir chave diferente).
 - **Instruções passo a passo (humano executa, agente registra):**
   1. Vercel: região `gru1` no Hobby, bloco `services`, `vercel build`+`--prebuilt` com Services, chave `git.deploymentEnabled`, proteção de deployment/forks, limite previews/dia, firewall.
   2. Neon: CU-horas, branches, inatividade 90 dias, `aws-sa-east-1`, conexão da branch preview.

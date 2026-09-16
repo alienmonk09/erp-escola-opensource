@@ -2,7 +2,7 @@
 
 - **Status:** Registrado (não implementado) — acionado somente se o Vercel Services mudar de forma incompatível (bloqueio B-02 da Etapa 2)
 - **Data:** 16/09/2026
-- **Relacionados:** ADR-0004 (hospedagem principal), ETAPA2-VALIDACAO (B-02, I-01, I-02), SRS §16/§18/§29
+- **Relacionados:** ADR-0004 (hospedagem principal), docs/ETAPA2-VALIDACAO (B-02, I-01, I-02), docs/SRS §16/§18/§29
 
 ## Contexto
 

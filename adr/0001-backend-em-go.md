@@ -34,5 +34,5 @@ Backend em **Go (mínimo 1.25)** no formato zero-config de backend Go da Vercel,
 ## Consequências
 
 - **Positivas:** binário único e rápido; `http.CrossOriginProtection` (Go ≥ 1.25) nativo para CSRF; geração determinística reduz o que a IA escreve à mão; centavos como inteiro eliminam erro de ponto flutuante.
-- **Negativas:** curva de aprendizado maior para estudantes iniciantes (mitigado pelo TUTORIAL.md); sqlc exige disciplina de escrever SQL; formato zero-config da Vercel precisa ser confirmado na documentação no momento da implementação `[VERIFICAR]`.
+- **Negativas:** curva de aprendizado maior para estudantes iniciantes (mitigado pelo docs/TUTORIAL.md); sqlc exige disciplina de escrever SQL; formato zero-config da Vercel precisa ser confirmado na documentação no momento da implementação `[VERIFICAR]`.
 - **Neutras:** migrações com goose rodam pelo GitHub Actions com papel de banco próprio, nunca pela aplicação.

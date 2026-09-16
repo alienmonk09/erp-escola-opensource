@@ -51,7 +51,11 @@ Total: 24 tarefas. Dependência entre fases: Fase N só começa com a anterior m
   - Given repo clonado, When `task dev` roda, Then PostgreSQL local sobe e backend/frontend sobem (mesmo que com hello vazio).
   - Given qualquer PR, When CI roda, Then jobs filtram por caminho e `task verificar` passa localmente.
 - **Comando de verificação local:** `task verificar`
-- **Passos manuais (humano):** nenhum.
+- **Pré-requisito manual (humano, uma única vez antes da F-01):** criar o repositório **público** na **conta pessoal** do GitHub (o plano Hobby da Vercel não conecta repos de organização, e os minutos ilimitados do Actions valem para repo público — PRD §6.3), conectá-lo e publicar a `main`:
+  1. `gh repo create <repo> --public` (ou em `github.com/new`: público, sem README/gitignore/licença — o conteúdo já existe localmente).
+  2. `git remote add origin https://github.com/<conta>/<repo>.git && git push -u origin main`.
+  3. Ativar **Secret scanning** e **Push protection** em *Settings → Code security* (TUTORIAL cap. 5.1).
+- **Passos manuais (humano):** o pré-requisito acima; nada além disso.
 - **Prompt pronto:**
   ```text
   Tarefa F-01 (Fundação: repo + toolchain). Leia SRS §17, §19, §27 e AGENTS.md §6-7.

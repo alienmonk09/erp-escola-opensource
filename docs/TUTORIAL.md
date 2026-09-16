@@ -211,7 +211,12 @@ O projeto só existe se nada custar dinheiro. Antes de qualquer código, você (
 
 1. Crie uma conta gratuita em `github.com/signup`. Use um e-mail que você acesse.
 2. Ative **Two-factor authentication** nas configurações (a conta que guarda o projeto de uma escola também precisa de 2FA!).
-3. No repositório do projeto, ative **Secret scanning** e **Push protection** em *Settings → Code security* — é o que impede alguém (ou uma IA) de publicar um segredo por acidente. Em repositórios públicos esses recursos são habilitados por padrão `[VERIFICAR]`.
+3. Crie o repositório do projeto: em `github.com/new`, escolha a **sua conta pessoal** (não uma organização — o plano Hobby da Vercel não conecta repos de organização), marque **Public** e **não** adicione README, `.gitignore` ou licença (o conteúdo já existe localmente). Depois conecte e publique a `main` (pré-requisito da tarefa F-01 do roadmap):
+   ```bash
+   git remote add origin https://github.com/<sua-conta>/erp-escola-opensource.git
+   git push -u origin main
+   ```
+4. No repositório do projeto, ative **Secret scanning** e **Push protection** em *Settings → Code security* — é o que impede alguém (ou uma IA) de publicar um segredo por acidente. Em repositórios públicos esses recursos são habilitados por padrão `[VERIFICAR]`.
 
 ### 5.2 Vercel (onde o sistema roda)
 

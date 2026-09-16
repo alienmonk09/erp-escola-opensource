@@ -1,0 +1,35 @@
+# docker-compose.yml — PostgreSQL local para dev/testes (F-01)
+# Fonte: SRS §17, §19 (`task dev`).
+#
+# NOTA DE SEGURANÇA (RS-004/RS-060): as credenciais abaixo são APENAS para o
+# banco local de desenvolvimento/testes criado pelo `task dev`. Nunca são
+# usadas em produção/preview (lá a conexão usa secrets do Neon via GitHub
+# Secrets/Vercel). Podem ser sobrescritas via ambiente (ver .env.example
+# futuro em tarefa própria) ou variáveis POSTGRES_*.
+# Nenhum usuário/senha de aplicação é criado aqui.
+
+name: erp-escola
+
+services:
+  db:
+    # Versão fixada (RS-061). Verificada no Docker Hub em 2026-09-16:
+    # 17.11 é o patch corrente da série 17.
+    image: postgres:17.11-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sacre}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sacre_local_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-erp_escola}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-sacre} -d $${POSTGRES_DB:-erp_escola}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres-data:

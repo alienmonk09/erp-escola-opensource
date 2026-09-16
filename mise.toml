@@ -1,0 +1,18 @@
+# mise.toml — versões fixas da toolchain (F-01)
+# Fonte: SRS §17, §19; RS-061 (versões fixadas); RNF-005.
+#
+# Versões escolhidas e verificadas em 2026-09-16:
+# - go 1.27.1: estável corrente em go.dev/dl (atende SRS: Go ≥ 1.25)
+# - node 24.21.0: LTS corrente em nodejs.org (atende frontend/Vite)
+# - pnpm 10.19.0: verificado no npm registry (compatível com Node ≥ 18)
+#
+# [VERIFICAR] (SRS §31 item 11): as flags exatas das CLIs de geração
+# (Redocly, oapi-codegen, sqlc, Orval, goose) serão conferidas contra estas
+# versões fixadas no início da F-02; a verificação completa dos 15 itens do
+# §31 acontece na tarefa F-09. Se algum [VERIFICAR] falhar, registrar ADR e
+# seguir o plano B (ADR-0005), nunca inventar.
+
+[tools]
+go = "1.27.1"
+node = "24.21.0"
+pnpm = "10.19.0"

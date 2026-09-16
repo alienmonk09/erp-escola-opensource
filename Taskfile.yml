@@ -1,0 +1,203 @@
+# Taskfile.yml — automação do monorepo (F-01)
+# Fonte: SRS §19 (comandos exatos), §27 (CI), AGENTS.md §6-7.
+#
+# As 8 tasks da §19 estão todas abaixo. Em F-01 o repositório ainda não tem
+# código (pastas vazias da §17), então cada task verifica se sua entrada
+# existe e, se não existir, registra "skip" e sai 0 — o `task verificar`
+# fica verde na árvore vazia. À medida que F-02…F-10 criarem
+# api/openapi.yaml, backend/go.mod, frontend/package.json etc., os trechos
+# marcados NOSKIP passam a executar de verdade (sem trocar o comando da §19).
+# Isso é andaime documentado, não enfraquecimento de gate (AGENTS.md §9):
+# não há nada para fiscalizar antes do código existir.
+
+version: "3"
+
+vars:
+  # Comandos exatos da SRS §19 (não alterar sem atualizar a §19).
+  CMD_CONTRATO_LINT: "pnpm exec @redocly/cli lint api/openapi.yaml"
+  CMD_GERAR_BACKEND: "oapi-codegen -config backend/oapi-cfg.yaml api/openapi.yaml"
+  CMD_GERAR_SQL: "sqlc generate"
+  CMD_GERAR_FRONTEND: "pnpm --filter frontend exec orval"
+
+tasks:
+  # ——— §19: lint do contrato (gate de CI) ———
+  # Fica estrito na F-02 (quando api/openapi.yaml existir).
+  contrato:lint:
+    desc: "Valida o contrato OpenAPI com Redocly (SRS §19)"
+    cmds:
+      - |
+        if [ ! -f api/openapi.yaml ]; then
+          echo "[contrato:lint] skip: api/openapi.yaml ainda não existe (criado na F-02)"
+          exit 0
+        fi
+        {{.CMD_CONTRATO_LINT}}
+
+  # ——— §19: geração de código (nunca editar gerados à mão) ———
+  # Fica estrito na F-02 (quando backend/oapi-cfg.yaml existir).
+  gerar:backend:
+    desc: "Gera server strict + tipos Go via oapi-codegen (SRS §19)"
+    cmds:
+      - |
+        if [ ! -f api/openapi.yaml ] || [ ! -f backend/oapi-cfg.yaml ]; then
+          echo "[gerar:backend] skip: contrato ou backend/oapi-cfg.yaml ainda não existe (F-02)"
+          exit 0
+        fi
+        {{.CMD_GERAR_BACKEND}}
+
+  # Fica estrito na F-03 (quando backend/sqlc.yaml existir).
+  gerar:sql:
+    desc: "Gera acesso a dados via sqlc a partir de backend/queries (SRS §19)"
+    dir: backend
+    cmds:
+      - |
+        if [ ! -f sqlc.yaml ]; then
+          echo "[gerar:sql] skip: backend/sqlc.yaml ainda não existe (F-03)"
+          exit 0
+        fi
+        {{.CMD_GERAR_SQL}}
+
+  # Fica estrito na F-07 (quando frontend/orval.config.ts existir).
+  gerar:frontend:
+    desc: "Gera composables TanStack Query + Zod via Orval (SRS §19)"
+    cmds:
+      - |
+        if [ ! -f frontend/orval.config.ts ]; then
+          echo "[gerar:frontend] skip: frontend/orval.config.ts ainda não existe (F-07)"
+          exit 0
+        fi
+        {{.CMD_GERAR_FRONTEND}}
+
+  # ——— §19: gate de código gerado em dia ———
+  gerar:checar:
+    desc: "Regenera tudo e garante árvore limpa (gate de CI, SRS §19)"
+    cmds:
+      - task: gerar:backend
+      - task: gerar:sql
+      - task: gerar:frontend
+      - git diff --exit-code
+
+  # ——— §19: ambiente local ———
+  dev:
+    desc: "Sobe PostgreSQL local e, quando existirem, backend Go + Vite (SRS §19)"
+    cmds:
+      - docker compose up -d
+      - |
+        echo "[dev] aguardando PostgreSQL ficar healthy..."
+        for i in $(seq 1 30); do
+          if docker compose exec -T db pg_isready -U "${POSTGRES_USER:-sacre}" -d "${POSTGRES_DB:-erp_escola}" >/dev/null 2>&1; then
+            echo "[dev] PostgreSQL pronto em localhost:${POSTGRES_PORT:-5432}"
+            break
+          fi
+          if [ "$i" = "30" ]; then
+            echo "[dev] ERRO: PostgreSQL não ficou pronto (verifique 'docker compose logs db')" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+      - |
+        if [ -f backend/cmd/api/main.go ]; then
+          (cd backend && go run ./cmd/api) &
+          echo "[dev] backend Go iniciado (PID $!)"
+        else
+          echo "[dev] skip backend: backend/cmd/api/main.go ainda não existe (criado na F-04)"
+        fi
+        if [ -f frontend/package.json ]; then
+          (cd frontend && pnpm dev --host) &
+          echo "[dev] frontend Vite iniciado (PID $!)"
+        else
+          echo "[dev] skip frontend: frontend/package.json ainda não existe (criado na F-07)"
+        fi
+        echo "[dev] ambiente local no ar. Para derrubar o banco: docker compose down"
+
+  # ——— §19: migrações (string DIRETA, papel de migração) ———
+  # RS-024/AGENTS.md §7: DATABASE_URL_MIGRACAO nunca vai para o repo.
+  migrar:
+    desc: "Aplica migrações goose com o papel de migração (SRS §19)"
+    cmds:
+      - |
+        if [ -z "${DATABASE_URL_MIGRACAO:-}" ]; then
+          echo "[migrar] ERRO: defina DATABASE_URL_MIGRACAO (string direta, fora do repo — RS-024)" >&2
+          exit 1
+        fi
+        goose -dir backend/migrations postgres "$DATABASE_URL_MIGRACAO" up
+
+  # ——— §19: verificação local obrigatória antes de todo PR ———
+  verificar:
+    desc: "lint + type check + testes + gerar:checar + varreduras, em paralelo (SRS §19)"
+    deps: [lint, typecheck, testes, gerar:checar, varreduras]
+
+  # ——— Subtasks internas do `verificar` (endurecem em F-02…F-10) ———
+  lint:
+    internal: true
+    cmds:
+      - |
+        STATUS=0
+        if [ -f backend/go.mod ]; then
+          echo "[lint] backend: gofmt + go vet"
+          MUTFMT=$(gofmt -l backend/cmd backend/internal 2>/dev/null || true)
+          if [ -n "$MUTFMT" ]; then echo "[lint] arquivos fora do gofmt: $MUTFMT" >&2; STATUS=1; fi
+          (cd backend && go vet ./...) || STATUS=1
+          # golangci-lint/gosec passam a rodar aqui na F-04 (config da SRS §30).
+        else
+          echo "[lint] skip backend: backend/go.mod ainda não existe (F-04)"
+        fi
+        if [ -f frontend/package.json ]; then
+          echo "[lint] frontend: eslint + prettier --check"
+          (cd frontend && pnpm exec eslint . && pnpm exec prettier --check .) || STATUS=1
+        else
+          echo "[lint] skip frontend: frontend/package.json ainda não existe (F-07)"
+        fi
+        exit $STATUS
+
+  typecheck:
+    internal: true
+    cmds:
+      - |
+        STATUS=0
+        if [ -f backend/go.mod ]; then
+          echo "[typecheck] backend: go build ./..."
+          (cd backend && go build ./...) || STATUS=1
+        else
+          echo "[typecheck] skip backend: backend/go.mod ainda não existe (F-04)"
+        fi
+        if [ -f frontend/tsconfig.json ]; then
+          echo "[typecheck] frontend: vue-tsc --noEmit"
+          (cd frontend && pnpm exec vue-tsc --noEmit) || STATUS=1
+        else
+          echo "[typecheck] skip frontend: frontend/tsconfig.json ainda não existe (F-07)"
+        fi
+        exit $STATUS
+
+  testes:
+    internal: true
+    cmds:
+      - |
+        STATUS=0
+        if [ -f backend/go.mod ]; then
+          echo "[testes] backend: go test ./..."
+          (cd backend && go test ./...) || STATUS=1
+        else
+          echo "[testes] skip backend: backend/go.mod ainda não existe (F-04)"
+        fi
+        if [ -f frontend/package.json ]; then
+          echo "[testes] frontend: vitest run"
+          (cd frontend && pnpm exec vitest run) || STATUS=1
+        else
+          echo "[testes] skip frontend: frontend/package.json ainda não existe (F-07)"
+        fi
+        exit $STATUS
+
+  varreduras:
+    internal: true
+    cmds:
+      - |
+        STATUS=0
+        if command -v gitleaks >/dev/null 2>&1; then
+          echo "[varreduras] gitleaks detect"
+          gitleaks detect --source . --verbose || STATUS=1
+        else
+          # Gate real roda no job `seguranca` do CI (F-01 já inclui Gitleaks lá).
+          echo "[varreduras] skip gitleaks: binário não instalado localmente (ver README; gate ativo no CI)"
+        fi
+        # OSV-Scanner e govulncheck entram aqui quando houver código (F-04, SRS §27/RS-061).
+        exit $STATUS

@@ -1,8 +1,17 @@
-# sqlc.yaml — acesso a dados via sqlc + pgx v5 (F-02: CONFIG VAZIA)
-# Fonte: SRS §19. As queries chegam na F-03 (`backend/queries/*.sql`), quando
-# este arquivo ganha o primeiro pacote (engine postgresql, gen.go com
-# sql_package pgx/v5, out internal/db — NUNCA editar gerados, AGENTS.md §4).
-# Enquanto não houver pacotes, `task gerar:sql` registra skip (ver Taskfile).
-# Versão fixada: sqlc v1.31.1 (ver mise.toml e CI).
+# backend/sqlc.yaml — geração do acesso a dados (F-03).
+# Fonte: SRS §19 (`task gerar:sql` roda `sqlc generate` na raiz de backend/).
+# Engine PostgreSQL + pgx v5. O schema é a verdade versionada das migrações
+# goose; as queries nomeadas vivem em queries/ (RS-031: só SQL parametrizado).
+# Gerado em backend/internal/db/ — nunca editar à mão (AGENTS.md §4.1).
+# Ferramenta verificada: sqlc v1.29.0.
 version: "2"
-sql: []
+sql:
+  - engine: "postgresql"
+    queries: "queries"
+    schema: "migrations"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        sql_package: "pgx/v5"
+        emit_json_tags: true

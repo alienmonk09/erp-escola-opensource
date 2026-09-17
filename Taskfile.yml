@@ -84,8 +84,13 @@ tasks:
   dev:
     desc: "Sobe PostgreSQL local + backend Go + Vite (SRS §19)"
     cmds:
-      - docker compose up -d
       - |
+        # O compose lê o .env sozinho, mas o shell destas tasks precisa das
+        # mesmas variáveis (o compose não as exporta) — carrega aqui.
+        if [ -f .env ]; then set -a; . ./.env; set +a; echo "[dev] variáveis carregadas do .env local"; fi
+        docker compose up -d
+      - |
+        if [ -f .env ]; then set -a; . ./.env; set +a; fi
         echo "[dev] aguardando PostgreSQL ficar healthy..."
         for i in $(seq 1 30); do
           if docker compose exec -T db pg_isready -U "${POSTGRES_USER:?defina POSTGRES_USER no .env (ver .env.example)}" -d "${POSTGRES_DB:-erp_escola}" >/dev/null 2>&1; then
@@ -99,7 +104,8 @@ tasks:
           sleep 2
         done
       - |
-        (cd backend && PORT="${BACKEND_PORT:-8080}" nohup go run ./cmd/api >/tmp/erp-backend-dev.log 2>&1 &) 
+        if [ -f .env ]; then set -a; . ./.env; set +a; fi
+        (cd backend && PORT="${BACKEND_PORT:-8080}" nohup go run ./cmd/api >/tmp/erp-backend-dev.log 2>&1 &)
         echo "[dev] backend Go iniciado (log: /tmp/erp-backend-dev.log)"
         for i in $(seq 1 30); do
           if curl -sf "http://127.0.0.1:${BACKEND_PORT:-8080}/api/saude" >/dev/null 2>&1; then
@@ -113,6 +119,7 @@ tasks:
           sleep 1
         done
       - |
+        if [ -f .env ]; then set -a; . ./.env; set +a; fi
         if [ ! -d frontend/node_modules ]; then
           echo "[dev] instalando dependências do frontend (pnpm install)..."
           pnpm --dir frontend install --frozen-lockfile

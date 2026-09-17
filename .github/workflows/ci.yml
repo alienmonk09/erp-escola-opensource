@@ -109,7 +109,7 @@ jobs:
         if: steps.existe.outputs.go == 'true'
         # `gerar:checar` regenera tudo (inclusive o frontend via Orval), por
         # isso o job backend também instala o workspace raiz (F-02).
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.21.0"
           cache: pnpm
@@ -146,7 +146,7 @@ jobs:
         # Versão espelha mise.toml (F-01: 24.21.0). Cache pnpm com o lockfile
         # versionado na RAIZ (RS-061); o workspace (F-02) unificou os
         # lockfiles — `frontend/pnpm-lock.yaml` foi movido para a raiz.
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.21.0"
           cache: pnpm
@@ -184,7 +184,7 @@ jobs:
         with:
           version: 10.19.0
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.21.0"
           # Cache de dependências do contrato ligado em F-02 (SRS §27):

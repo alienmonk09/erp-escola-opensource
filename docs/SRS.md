@@ -1163,7 +1163,7 @@ flowchart LR
 
 | Task do Taskfile | Comando | O que faz |
 | :--- | :--- | :--- |
-| `task contrato:lint` | `pnpm exec @redocly/cli lint api/openapi.yaml` | Valida o contrato (gate de CI) |
+| `task contrato:lint` | `pnpm exec redocly lint --config api/redocly.yaml api/openapi.yaml` | Valida o contrato (gate de CI) |
 | `task gerar:backend` | `oapi-codegen -config backend/oapi-cfg.yaml api/openapi.yaml` | Gera server strict + tipos (chi) |
 | `task gerar:sql` | `sqlc generate` (na raiz de `backend/`) | Gera código de acesso a dados a partir de `queries/` |
 | `task gerar:frontend` | `pnpm --filter frontend exec orval` | Gera composables TanStack Query + schemas Zod |

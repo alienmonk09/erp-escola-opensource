@@ -1,0 +1,11 @@
+# oapi-cfg.yaml — geração do servidor Go via oapi-codegen (F-02)
+# Fonte: SRS §19. Gera strict-server sobre chi + tipos em
+# `backend/internal/httpapi/` — NUNCA editar à mão (AGENTS.md §4, SRS §17):
+# regenere com `task gerar:backend` e confira com `task gerar:checar`.
+# Versão fixada: oapi-codegen v2.8.0 (ver mise.toml e CI).
+package: httpapi
+output: backend/internal/httpapi/api.gen.go
+generate:
+  models: true
+  chi-server: true
+  strict-server: true

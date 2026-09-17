@@ -3,9 +3,10 @@
 # RS-061 (Actions fixadas por hash de commit), RS-062 (PRs de fork rodam sem
 # secrets — nenhum trigger privilegiado que exponha secrets a código de terceiros).
 #
-# Estado em F-01: jobs com a estrutura final (§27). Os gates de backend e
-# frontend já executam de verdade contra o hello vazio (F-01); Redocly entra
-# em F-02, golangci-lint/govulncheck em F-04, Vitest/ESLint em F-07.
+# Estado em F-02: jobs com a estrutura final (§27). Os gates de backend e
+# frontend executam `task gerar:checar` com ferramentas fixadas (oapi-codegen
+# via go install, Orval/Redocly via workspace pnpm — ver mise.toml);
+# golangci-lint/govulncheck entram em F-04, Vitest/ESLint em F-07.
 # E2E/Lighthouse/ZAP/backup ficam SÓ na main ou agendados — nunca por PR (§27).
 #
 # Todas as actions estão fixadas por HASH DE COMMIT (RS-061) no formato
@@ -83,8 +84,8 @@ jobs:
       - name: Setup Go
         if: steps.existe.outputs.go == 'true'
         # Versão espelha mise.toml (F-01: 1.27.1). Sem cache-dependency-path:
-        # o hello é stdlib-only (sem go.sum); o cache de módulos é ligado em
-        # F-04 com a primeira dependência externa (SRS §27).
+        # o cache de módulos é ligado em F-04 com o shell do backend (SRS §27);
+        # na F-02 o go.sum já existe (chi + runtime do gerado, §19).
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.27.1"
@@ -94,6 +95,28 @@ jobs:
         run: |
           go install github.com/go-task/task/v3/cmd/task@v3.53.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Setup oapi-codegen (versão fixada — F-02, ver mise.toml)
+        if: steps.existe.outputs.go == 'true'
+        run: |
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Setup pnpm
+        if: steps.existe.outputs.go == 'true'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.19.0
+      - name: Setup Node
+        if: steps.existe.outputs.go == 'true'
+        # `gerar:checar` regenera tudo (inclusive o frontend via Orval), por
+        # isso o job backend também instala o workspace raiz (F-02).
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24.21.0"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Instalar workspace (Orval/Redocly fixados — F-02)
+        if: steps.existe.outputs.go == 'true'
+        run: pnpm install --frozen-lockfile
       - name: Gate backend
         run: |
           if [ "${{ steps.existe.outputs.go }}" != "true" ]; then
@@ -121,12 +144,13 @@ jobs:
       - name: Setup Node
         if: steps.existe.outputs.node == 'true'
         # Versão espelha mise.toml (F-01: 24.21.0). Cache pnpm com o lockfile
-        # versionado (RS-061); existe desde a F-01 (hello frontend).
+        # versionado na RAIZ (RS-061); o workspace (F-02) unificou os
+        # lockfiles — `frontend/pnpm-lock.yaml` foi movido para a raiz.
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24.21.0"
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: Setup Go + Task (runner das tasks do Taskfile)
         if: steps.existe.outputs.node == 'true'
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
@@ -135,6 +159,7 @@ jobs:
           cache: false
       - run: |
           go install github.com/go-task/task/v3/cmd/task@v3.53.1
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
         if: steps.existe.outputs.node == 'true'
       - name: Gate frontend
@@ -143,7 +168,7 @@ jobs:
             echo "sem frontend/package.json — nada a fiscalizar"
             exit 0
           fi
-          pnpm --dir frontend install --frozen-lockfile
+          pnpm install --frozen-lockfile
           task typecheck && task testes && task gerar:checar
 
   contrato:
@@ -162,15 +187,18 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24.21.0"
-        # Sem `cache: pnpm` aqui: este job não tem lockfile próprio; o cache
-        # de dependências do contrato é ligado em F-02 (SRS §27).
+          # Cache de dependências do contrato ligado em F-02 (SRS §27):
+          # Redocly fixado como devDep da raiz (ver mise.toml, RS-061).
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Gate contrato
         run: |
           if [ ! -f api/openapi.yaml ]; then
             echo "api/openapi.yaml ainda não existe (criado na F-02) — Redocly lint entra em F-02"
             exit 0
           fi
-          npx -y @redocly/cli lint api/openapi.yaml
+          pnpm install --frozen-lockfile
+          pnpm exec redocly lint --config api/redocly.yaml api/openapi.yaml
 
   seguranca:
     name: segurança

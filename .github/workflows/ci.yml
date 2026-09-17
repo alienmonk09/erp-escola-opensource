@@ -100,6 +100,13 @@ jobs:
         run: |
           go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Setup sqlc (versão fixada — gera backend/internal/db em F-03)
+        if: steps.existe.outputs.go == 'true'
+        # `task gerar:sql` exige o binário; sem ele o gate gerar:checar falha.
+        # Versão espelha a usada no desenvolvimento da F-03.
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Setup pnpm
         if: steps.existe.outputs.go == 'true'
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0

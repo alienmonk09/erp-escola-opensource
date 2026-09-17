@@ -89,6 +89,7 @@ Total: 24 tarefas. Dependência entre fases: Fase N só começa com a anterior m
 
 ### F-03 — Banco: papéis, migrações base, auditoria append-only
 
+- **Status:** 🟡 em revisão — PR #8 (https://github.com/alienmonk09/erp-escola-opensource/pull/8), 2026-09-17.
 - **Dependências:** F-01.
 - **Requisitos atendidos:** SRS §20 (§20.1, §20.2, §20.7, §20.8); RS-010, RS-011, RS-024; RN-002 (parcial: usuario/perfil); RE-06.
 - **Contexto mínimo:** Dois papéis: `sacre_migracao` (dono, só Actions via string direta) e `sacre_app` (só SELECT/INSERT/UPDATE, sem UPDATE/DELETE em `auditoria`). Migrações goose em `backend/migrations/` (expandir→contrair). Tabelas desta tarefa: `usuario`, `perfil`, `usuario_perfil`, `auditoria`, `notificacao` (§20.2). Testes com testcontainers-go contra PostgreSQL real.

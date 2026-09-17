@@ -4,10 +4,12 @@ ERP escolar open source (monorepo). Especificação em `docs/` (`SRS.md`, `PRD.m
 `THREAT-MODEL.md`, `ROADMAP.md`, `TUTORIAL.md`). Regras obrigatórias para
 qualquer agente ou contribuidor em `AGENTS.md`.
 
-> Estado (F-01): fundação — toolchain e ambiente local. Sem código de negócio:
-> `task dev` sobe PostgreSQL + backend hello (`GET /api/saude`) + frontend
-> hello (Vite); `task verificar` fiscaliza o que já existe e endurece junto
-> com cada tarefa do `docs/ROADMAP.md`.
+> Estado (F-02): fundação + contrato OpenAPI (`api/openapi.yaml`: saúde e
+> sessão, envelope `Erro`, `security` negar-por-padrão) com geração de código
+> (oapi-codegen strict-server chi, sqlc, Orval + Zod — gerados nunca editados
+> à mão). Sem código de negócio: `task dev` sobe PostgreSQL + backend hello
+> (`GET /api/saude`) + frontend hello (Vite); `task verificar` fiscaliza o
+> que já existe e endurece junto com cada tarefa do `docs/ROADMAP.md`.
 
 ## Pré-requisitos
 
@@ -18,8 +20,15 @@ qualquer agente ou contribuidor em `AGENTS.md`.
 | Node | 24.21.0 (LTS) | `mise install` na raiz do repo |
 | pnpm | 10.19.0 | `mise install` na raiz do repo |
 | Task | ≥ 3.53.1 | `brew install go-task/tap/go-task` |
+| oapi-codegen | v2.8.0 | `go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0` (F-02) |
+| sqlc | v1.31.1 | `go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1` (gera na F-03) |
 | Docker + Compose | — | Docker Desktop ou Colima (`docker compose version`) |
 | Gitleaks | — | `brew install gitleaks` (obrigatório: `task verificar` falha sem ele) |
+
+Redocly e Orval vêm do workspace pnpm (`pnpm install` na raiz — versões
+fixadas em `package.json`/`frontend/package.json`, ver `mise.toml`). Binários
+instalados via `go install` ficam em `$(go env GOPATH)/bin` — garanta esse
+diretório no `PATH` para as tasks `gerar:*`.
 
 ## Como rodar (`task dev`)
 

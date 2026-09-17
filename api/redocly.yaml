@@ -1,0 +1,49 @@
+# redocly.yaml — lint do contrato OpenAPI (F-02)
+# Fonte: SRS §30 (regras de contrato) e RS-035 (PR com contrato inválido não
+# mescla). Fiscaliza: (1) operação sem `security` explícito = erro (negar por
+# padrão, RS-020); (2) resposta de erro sem `application/json` = erro (toda
+# resposta de erro usa o envelope `Erro` da §15.3).
+# O corpo do erro é sempre o schema `Erro` por construção (ver `components:`
+# em openapi.yaml); revisão humana + clientes gerados tipados confirmam.
+# Uso: `task contrato:lint` (= `pnpm exec redocly lint --config api/redocly.yaml api/openapi.yaml`).
+apis:
+  main:
+    root: ./openapi.yaml
+extends:
+  - recommended
+rules:
+  # O esquema referenciado precisa existir (complementa a regra custom abaixo,
+  # que exige a presença explícita por operação).
+  security-defined: error
+  # Catálogo de erros (§15.3) e `PaginaDe` são pré-declarados para reuso nas
+  # próximas tarefas — "não usado ainda" é intencional, não erro.
+  no-unused-components: warn
+  rule/operacao-exige-security:
+    message: Toda operação deve declarar `security` explicitamente (`sessaoCookie` ou `[]` nas públicas da SRS §12 — RS-020, negar por padrão).
+    severity: error
+    subject:
+      type: Operation
+      property: security
+    assertions:
+      defined: true
+  rule/erro-exige-json:
+    message: Toda resposta de erro (4xx/5xx) deve devolver `application/json` com o envelope `Erro` (SRS §15.3).
+    severity: error
+    where:
+      - subject:
+          type: Response
+          filterInParentKeys:
+            - '400'
+            - '401'
+            - '403'
+            - '404'
+            - '409'
+            - '429'
+            - '500'
+        assertions:
+          defined: true
+    subject:
+      type: MediaTypesMap
+    assertions:
+      required:
+        - application/json

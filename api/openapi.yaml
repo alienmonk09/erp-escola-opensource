@@ -1,0 +1,341 @@
+openapi: 3.1.0
+info:
+  title: ERP Escola Sacre Coeur des Enfants
+  version: 0.1.0
+  description: >-
+    Contrato da API — fonte da verdade (AGENTS.md §6, SRS §15).
+    Escopo F-02: saúde (`/api/saude`) + sessão (`/api/sessao`) e envelope de
+    erro padrão. Novos recursos entram aqui antes do código, tarefa a tarefa.
+  contact:
+    name: ERP Escola Sacre Coeur des Enfants
+    url: https://github.com/alienmonk09/erp-escola-opensource
+servers:
+  - url: /
+    description: same-origin (Vercel Services) — sem CORS
+# Negar por padrão (RS-020): toda operação herda sessão; rotas públicas
+# listadas na SRS §12 sobrescrevem com `security: []`. Por convenção (§30)
+# cada operação declara `security` explicitamente — fiscalizado em redocly.yaml.
+security:
+  - sessaoCookie: []
+tags:
+  - name: Saude
+    description: Sondas de saúde (públicas, sem dados — RS-052).
+  - name: Sessao
+    description: Login, TOTP e logout (RF-001, RF-002, RF-008).
+paths:
+  /api/saude:
+    get:
+      operationId: lerSaude
+      summary: Saúde sem banco
+      description: Sonda liveness — não toca o banco, não expõe detalhe interno (RS-052).
+      tags:
+        - Saude
+      security: []
+      responses:
+        '200':
+          description: Serviço no ar.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Saude'
+        '500':
+          description: Falha interna (corpo genérico, RS-044).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+  /api/saude/pronto:
+    get:
+      operationId: lerProntidao
+      summary: Prontidão com banco
+      description: Sonda readiness — toca o banco, não expõe detalhe interno (RS-052).
+      tags:
+        - Saude
+      security: []
+      responses:
+        '200':
+          description: Serviço pronto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prontidao'
+        '500':
+          description: Banco ou serviço indisponível (corpo genérico, RS-044).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+  /api/sessao:
+    post:
+      operationId: criarSessao
+      summary: Login com email e senha
+      description: >-
+        Abre sessão pré-login (RF-001). Pública com rate limit (RS-012/RS-050).
+        Mutação: exige confirmação de origem CSRF (RS-040, implementação em F-04).
+        Falha devolve mensagem genérica (RS-001/RS-002).
+      tags:
+        - Sessao
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessaoCriarEntrada'
+      responses:
+        '200':
+          description: Sessão aberta (pré-login quando `pedeTotp` for verdadeiro, RF-002).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sessao'
+        '400':
+          $ref: '#/components/responses/PayloadInvalido'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '429':
+          $ref: '#/components/responses/LimiteExcedido'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+    delete:
+      operationId: encerrarSessao
+      summary: Logout
+      description: >-
+        Encerra a sessão (RF-008). Mutação: exige confirmação de origem
+        CSRF (RS-040, implementação em F-04).
+      tags:
+        - Sessao
+      security:
+        - sessaoCookie: []
+      responses:
+        '204':
+          description: Sessão encerrada.
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+  /api/sessao/totp:
+    post:
+      operationId: confirmarTotp
+      summary: Validar TOTP e efetivar sessão
+      description: >-
+        Valida o código TOTP sobre a sessão pré-login e efetiva a sessão
+        (RF-001/RF-002). Mutação: exige confirmação de origem CSRF (RS-040,
+        implementação em F-04).
+      tags:
+        - Sessao
+      security:
+        - sessaoCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TotpConfirmarEntrada'
+      responses:
+        '200':
+          description: Sessão efetivada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sessao'
+        '400':
+          $ref: '#/components/responses/PayloadInvalido'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '429':
+          $ref: '#/components/responses/LimiteExcedido'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+components:
+  securitySchemes:
+    sessaoCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-sessao
+      description: Cookie de sessão (RS-003). Identifica a sessão, não autoriza nada sozinho (RS-022).
+  responses:
+    PayloadInvalido:
+      description: Payload ou query fora do contrato (RS-030).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+    NaoAutenticado:
+      description: Sem sessão ou sessão expirada (RS-003).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+    SemPermissao:
+      description: Sem scope ou sem posse — mesma mensagem nos dois casos (RS-021/RS-023).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+    NaoEncontrado:
+      description: Recurso inexistente ou sem permissão de vê-lo (AM-006).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+    ConflitoRegra:
+      description: Violação de regra de negócio (RN-002/003/004/012).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+    LimiteExcedido:
+      description: Rate limit (RS-050/RS-051).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+    ErroInterno:
+      description: Falha não tratada — corpo genérico, detalhe só no log (RS-044).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+  schemas:
+    Erro:
+      description: Envelope de erro padrão — todos os erros, sem exceção (SRS §15.3).
+      type: object
+      required:
+        - erro
+      properties:
+        erro:
+          type: object
+          required:
+            - codigo
+            - mensagem
+          properties:
+            codigo:
+              description: Código estável do erro.
+              type: string
+              enum:
+                - PayloadInvalido
+                - NaoAutenticado
+                - SemPermissao
+                - NaoEncontrado
+                - ConflitoRegra
+                - LimiteExcedido
+                - ErroInterno
+            mensagem:
+              description: Mensagem em pt-BR, sem detalhe interno (RS-044).
+              type: string
+              maxLength: 500
+            detalhes:
+              type: array
+              items:
+                $ref: '#/components/schemas/ErroCampo'
+    ErroCampo:
+      description: Detalhe por campo (só em 400).
+      type: object
+      properties:
+        campo:
+          description: Caminho do campo no payload.
+          type: string
+          maxLength: 200
+        problema:
+          type: string
+          maxLength: 500
+    PaginaMeta:
+      description: Metadados de paginação (SRS §15.2/§15.4).
+      type: object
+      required:
+        - pagina
+        - porPagina
+        - totalItens
+      properties:
+        pagina:
+          type: integer
+          minimum: 1
+        porPagina:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalItens:
+          type: integer
+          minimum: 0
+    PaginaDe:
+      description: >-
+        Envelope de resposta paginada (convenção SRS §15.2: `PaginaDe<T>`).
+        Listagens futuras especializam `itens`; declarado aqui para firmar a
+        convenção mesmo ainda sem uso (F-02).
+      type: object
+      required:
+        - meta
+        - itens
+      properties:
+        meta:
+          $ref: '#/components/schemas/PaginaMeta'
+        itens:
+          description: Itens da página (schema especializado por listagem).
+          type: array
+          items:
+            description: Item da página.
+            type: object
+    Saude:
+      description: Resposta da sonda liveness.
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+    Prontidao:
+      description: Resposta da sonda readiness.
+      type: object
+      required:
+        - status
+        - banco
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+        banco:
+          type: string
+          enum:
+            - ok
+    SessaoCriarEntrada:
+      description: Credenciais de login (RF-001).
+      type: object
+      required:
+        - email
+        - senha
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        senha:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 256
+    TotpConfirmarEntrada:
+      description: Código TOTP de 6 dígitos (RF-001).
+      type: object
+      required:
+        - codigo
+      properties:
+        codigo:
+          type: string
+          pattern: ^[0-9]{6}$
+    Sessao:
+      description: Sessão aberta (F-04 implementa; aqui só o formato).
+      type: object
+      required:
+        - pedeTotp
+      properties:
+        pedeTotp:
+          description: Verdadeiro quando o login exige concluir o TOTP (RF-002).
+          type: boolean
+        usuarioId:
+          description: Identificador do usuário dono da sessão.
+          type: string
+          format: uuid

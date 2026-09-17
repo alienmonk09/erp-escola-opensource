@@ -1,0 +1,5 @@
+# pnpm-workspace.yaml — workspace pnpm (F-02)
+# Exigido pelo comando da SRS §19 `pnpm --filter frontend exec orval`
+# (`--filter` só opera sobre workspace). O lockfile único vive na raiz.
+packages:
+  - frontend

@@ -11,6 +11,17 @@
 # versões fixadas no início da F-02; a verificação completa dos 15 itens do
 # §31 acontece na tarefa F-09. Se algum [VERIFICAR] falhar, registrar ADR e
 # seguir o plano B (ADR-0005), nunca inventar.
+#
+# CLIs de contrato/geração conferidas e fixadas na F-02 (2026-09-17):
+# - @redocly/cli 2.53.2 (npm, devDep da raiz — `task contrato:lint`)
+# - orval 8.33.0 (npm, devDep do frontend — `task gerar:frontend`)
+# - oapi-codegen v2.8.0 (`go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0`)
+# - sqlc v1.31.1 (`go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1`)
+# - go-chi/chi v5.3.2 + oapi-codegen/runtime v1.7.0 (deps do gerado, backend/go.mod)
+# Correções aplicadas na F-02 (registradas no PR): binário do Redocly é
+# `redocly` (não `@redocly/cli`) e a config vive em `api/redocly.yaml`
+# (exige `--config` — Redocly não a descobre a partir da raiz); §19
+# atualizada junto com o Taskfile.
 
 [tools]
 go = "1.27.1"

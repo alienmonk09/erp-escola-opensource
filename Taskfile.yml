@@ -15,7 +15,7 @@ version: "3"
 
 vars:
   # Comandos exatos da SRS §19 (não alterar sem atualizar a §19).
-  CMD_CONTRATO_LINT: "pnpm exec @redocly/cli lint api/openapi.yaml"
+  CMD_CONTRATO_LINT: "pnpm exec redocly lint --config api/redocly.yaml api/openapi.yaml"
   CMD_GERAR_BACKEND: "oapi-codegen -config backend/oapi-cfg.yaml api/openapi.yaml"
   CMD_GERAR_SQL: "sqlc generate"
   CMD_GERAR_FRONTEND: "pnpm --filter frontend exec orval"
@@ -45,7 +45,9 @@ tasks:
         fi
         {{.CMD_GERAR_BACKEND}}
 
-  # Fica estrito na F-03 (quando backend/sqlc.yaml existir).
+  # Fica estrito na F-03 (quando backend/sqlc.yaml declarar pacotes). Na F-02
+  # a config é vazia de propósito (ROADMAP) e não há o que gerar — skip
+  # documentado, não enfraquecimento (AGENTS.md §9).
   gerar:sql:
     desc: "Gera acesso a dados via sqlc a partir de backend/queries (SRS §19)"
     dir: backend
@@ -55,9 +57,14 @@ tasks:
           echo "[gerar:sql] skip: backend/sqlc.yaml ainda não existe (F-03)"
           exit 0
         fi
+        if ! grep -q 'engine:' sqlc.yaml; then
+          echo "[gerar:sql] skip: backend/sqlc.yaml sem pacotes (config vazia da F-02; queries chegam na F-03)"
+          exit 0
+        fi
         {{.CMD_GERAR_SQL}}
 
-  # Fica estrito na F-07 (quando frontend/orval.config.ts existir).
+  # Estrito desde a F-02 (quando frontend/orval.config.ts foi criado). Gera
+  # composables TanStack Query + Zod em frontend/src/api (nunca editar à mão).
   gerar:frontend:
     desc: "Gera composables TanStack Query + Zod via Orval (SRS §19)"
     cmds:

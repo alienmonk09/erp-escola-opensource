@@ -3,7 +3,9 @@ module github.com/alienmonk09/erp-escola-opensource/backend
 go 1.27
 
 require (
+	github.com/go-chi/chi/v5 v5.3.2
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/oapi-codegen/runtime v1.7.0
 	github.com/pressly/goose/v3 v3.24.3
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 )

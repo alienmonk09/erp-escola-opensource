@@ -1,0 +1,9 @@
+{
+  "name": "erp-escola-opensource",
+  "private": true,
+  "description": "Raiz do workspace pnpm (F-02): contrato OpenAPI + geração de código (SRS §19)",
+  "packageManager": "pnpm@10.19.0",
+  "devDependencies": {
+    "@redocly/cli": "2.53.2"
+  }
+}

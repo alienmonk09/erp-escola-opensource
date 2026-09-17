@@ -66,6 +66,7 @@ Total: 24 tarefas. Dependência entre fases: Fase N só começa com a anterior m
 
 ### F-02 — Contrato OpenAPI inicial + geração de código
 
+- **Status:** 🟡 em revisão — PR #7 (https://github.com/alienmonk09/erp-escola-opensource/pull/7), 2026-09-17.
 - **Dependências:** F-01.
 - **Requisitos atendidos:** SRS §12, §15; RS-020, RS-022, RS-030, RS-035; RF-001, RF-002, RF-008.
 - **Contexto mínimo:** Contrato-first (AGENTS.md §6). `api/openapi.yaml` é a fonte da verdade. Escopo deste PR: `GET /api/saude`, `GET /api/saude/pronto`, `POST /api/sessao`, `POST /api/sessao/totp`, `DELETE /api/sessao` + envelope `Erro` (§15.3) + `security: sessaoCookie` negar-por-padrão (§15.1). Convenções §15.2 (UUID, centavos, datas, paginação, CPF dígitos, enums).

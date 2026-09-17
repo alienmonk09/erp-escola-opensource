@@ -1,0 +1,39 @@
+# dependabot.yml — atualizações automáticas (F-01)
+# Fonte: RS-061 (Dependabot ativo: Go, npm, Actions), SRS §27.
+# PRs do Dependabot passam pelos mesmos gates do CI e exigem revisão
+# humana (nunca auto-merge) — ver THREAT-MODEL AM-032.
+
+version: 2
+updates:
+  # Dependências Go do backend (F-04 em diante).
+  - package-ecosystem: gomod
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Fortaleza
+    open-pull-requests-limit: 5
+    labels: [dependencies, backend]
+
+  # Dependências npm do frontend (F-07 em diante).
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Fortaleza
+    open-pull-requests-limit: 5
+    labels: [dependencies, frontend]
+
+  # GitHub Actions (mantém pinos por hash atualizados via PR revisado).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Fortaleza
+    open-pull-requests-limit: 5
+    labels: [dependencies, ci]

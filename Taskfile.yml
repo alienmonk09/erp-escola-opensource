@@ -1,0 +1,232 @@
+# Taskfile.yml — automação do monorepo (F-01, rev. pós-review)
+# Fonte: SRS §19 (comandos exatos), §27 (CI), AGENTS.md §6-7.
+#
+# As 8 tasks da §19 estão todas abaixo. Cada gate só é exigido quando sua
+# entrada real existe (ex.: lint de frontend exige config do ESLint, não só
+# package.json); quando a entrada ainda não existe (criada em F-02…F-10), a
+# task registra "skip" e sai 0. Isso é andaime documentado, não
+# enfraquecimento de gate (AGENTS.md §9): não há o que fiscalizar antes da
+# ferramenta/entrada existir — e o CI executa os mesmos gates.
+#
+# Subtasks de `verificar` (lint, typecheck, testes, varreduras) são públicas
+# de propósito: o CI as invoca pela CLI (tasks `internal` são rejeitadas).
+
+version: "3"
+
+vars:
+  # Comandos exatos da SRS §19 (não alterar sem atualizar a §19).
+  CMD_CONTRATO_LINT: "pnpm exec @redocly/cli lint api/openapi.yaml"
+  CMD_GERAR_BACKEND: "oapi-codegen -config backend/oapi-cfg.yaml api/openapi.yaml"
+  CMD_GERAR_SQL: "sqlc generate"
+  CMD_GERAR_FRONTEND: "pnpm --filter frontend exec orval"
+
+tasks:
+  # ——— §19: lint do contrato (gate de CI) ———
+  # Fica estrito na F-02 (quando api/openapi.yaml existir).
+  contrato:lint:
+    desc: "Valida o contrato OpenAPI com Redocly (SRS §19)"
+    cmds:
+      - |
+        if [ ! -f api/openapi.yaml ]; then
+          echo "[contrato:lint] skip: api/openapi.yaml ainda não existe (criado na F-02)"
+          exit 0
+        fi
+        {{.CMD_CONTRATO_LINT}}
+
+  # ——— §19: geração de código (nunca editar gerados à mão) ———
+  # Fica estrito na F-02 (quando backend/oapi-cfg.yaml existir).
+  gerar:backend:
+    desc: "Gera server strict + tipos Go via oapi-codegen (SRS §19)"
+    cmds:
+      - |
+        if [ ! -f api/openapi.yaml ] || [ ! -f backend/oapi-cfg.yaml ]; then
+          echo "[gerar:backend] skip: contrato ou backend/oapi-cfg.yaml ainda não existe (F-02)"
+          exit 0
+        fi
+        {{.CMD_GERAR_BACKEND}}
+
+  # Fica estrito na F-03 (quando backend/sqlc.yaml existir).
+  gerar:sql:
+    desc: "Gera acesso a dados via sqlc a partir de backend/queries (SRS §19)"
+    dir: backend
+    cmds:
+      - |
+        if [ ! -f sqlc.yaml ]; then
+          echo "[gerar:sql] skip: backend/sqlc.yaml ainda não existe (F-03)"
+          exit 0
+        fi
+        {{.CMD_GERAR_SQL}}
+
+  # Fica estrito na F-07 (quando frontend/orval.config.ts existir).
+  gerar:frontend:
+    desc: "Gera composables TanStack Query + Zod via Orval (SRS §19)"
+    cmds:
+      - |
+        if [ ! -f frontend/orval.config.ts ]; then
+          echo "[gerar:frontend] skip: frontend/orval.config.ts ainda não existe (F-07)"
+          exit 0
+        fi
+        {{.CMD_GERAR_FRONTEND}}
+
+  # ——— §19: gate de código gerado em dia ———
+  gerar:checar:
+    desc: "Regenera tudo e garante árvore limpa (gate de CI, SRS §19)"
+    cmds:
+      - task: gerar:backend
+      - task: gerar:sql
+      - task: gerar:frontend
+      - git diff --exit-code
+
+  # ——— §19: ambiente local ———
+  # Sobe PostgreSQL + backend Go + Vite (aceite F-01: os três sobem, mesmo que
+  # com hello vazio). Banco e serviços escutam SÓ em loopback. Requer .env
+  # local (ver .env.example) para as credenciais do banco — sem padrão no repo.
+  dev:
+    desc: "Sobe PostgreSQL local + backend Go + Vite (SRS §19)"
+    cmds:
+      - |
+        # O compose lê o .env sozinho, mas o shell destas tasks precisa das
+        # mesmas variáveis (o compose não as exporta) — carrega aqui.
+        if [ -f .env ]; then set -a; . ./.env; set +a; echo "[dev] variáveis carregadas do .env local"; fi
+        docker compose up -d
+      - |
+        if [ -f .env ]; then set -a; . ./.env; set +a; fi
+        echo "[dev] aguardando PostgreSQL ficar healthy..."
+        for i in $(seq 1 30); do
+          if docker compose exec -T db pg_isready -U "${POSTGRES_USER:?defina POSTGRES_USER no .env (ver .env.example)}" -d "${POSTGRES_DB:-erp_escola}" >/dev/null 2>&1; then
+            echo "[dev] PostgreSQL pronto em 127.0.0.1:${POSTGRES_PORT:-5432}"
+            break
+          fi
+          if [ "$i" = "30" ]; then
+            echo "[dev] ERRO: PostgreSQL não ficou pronto (verifique 'docker compose logs db')" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+      - |
+        if [ -f .env ]; then set -a; . ./.env; set +a; fi
+        (cd backend && PORT="${BACKEND_PORT:-8080}" nohup go run ./cmd/api >/tmp/erp-backend-dev.log 2>&1 &)
+        echo "[dev] backend Go iniciado (log: /tmp/erp-backend-dev.log)"
+        for i in $(seq 1 30); do
+          if curl -sf "http://127.0.0.1:${BACKEND_PORT:-8080}/api/saude" >/dev/null 2>&1; then
+            echo "[dev] backend pronto em http://127.0.0.1:${BACKEND_PORT:-8080}/api/saude"
+            break
+          fi
+          if [ "$i" = "30" ]; then
+            echo "[dev] ERRO: backend não respondeu (ver /tmp/erp-backend-dev.log)" >&2
+            exit 1
+          fi
+          sleep 1
+        done
+      - |
+        if [ -f .env ]; then set -a; . ./.env; set +a; fi
+        if [ ! -d frontend/node_modules ]; then
+          echo "[dev] instalando dependências do frontend (pnpm install)..."
+          pnpm --dir frontend install --frozen-lockfile
+        fi
+        (cd frontend && nohup pnpm dev >/tmp/erp-frontend-dev.log 2>&1 &)
+        echo "[dev] frontend Vite iniciado (log: /tmp/erp-frontend-dev.log)"
+        for i in $(seq 1 30); do
+          if curl -sf "http://127.0.0.1:${FRONTEND_PORT:-5173}/" >/dev/null 2>&1; then
+            echo "[dev] frontend pronto em http://127.0.0.1:${FRONTEND_PORT:-5173}/"
+            break
+          fi
+          if [ "$i" = "30" ]; then
+            echo "[dev] ERRO: frontend não respondeu (ver /tmp/erp-frontend-dev.log)" >&2
+            exit 1
+          fi
+          sleep 1
+        done
+        echo "[dev] ambiente local no ar. Para derrubar tudo: pkill -f 'go run ./cmd/api'; pkill -f 'vite'; docker compose down"
+
+  # ——— §19: migrações (string DIRETA, papel de migração) ———
+  # RS-024/AGENTS.md §7: DATABASE_URL_MIGRACAO nunca vai para o repo.
+  migrar:
+    desc: "Aplica migrações goose com o papel de migração (SRS §19)"
+    cmds:
+      - |
+        if [ -z "${DATABASE_URL_MIGRACAO:-}" ]; then
+          echo "[migrar] ERRO: defina DATABASE_URL_MIGRACAO (string direta, fora do repo — RS-024)" >&2
+          exit 1
+        fi
+        goose -dir backend/migrations postgres "$DATABASE_URL_MIGRACAO" up
+
+  # ——— §19: verificação local obrigatória antes de todo PR ———
+  verificar:
+    desc: "lint + type check + testes + gerar:checar + varreduras, em paralelo (SRS §19)"
+    deps: [lint, typecheck, testes, gerar:checar, varreduras]
+
+  # ——— Subtasks do `verificar` (públicas: o CI as invoca pela CLI) ———
+  lint:
+    desc: "gofmt + go vet; ESLint + Prettier quando configurados (F-07)"
+    cmds:
+      - |
+        STATUS=0
+        if [ -f backend/go.mod ]; then
+          echo "[lint] backend: gofmt + go vet"
+          MUTFMT=$(gofmt -l backend/cmd backend/internal 2>/dev/null || true)
+          if [ -n "$MUTFMT" ]; then echo "[lint] arquivos fora do gofmt: $MUTFMT" >&2; STATUS=1; fi
+          (cd backend && go vet ./...) || STATUS=1
+          # golangci-lint/gosec passam a rodar aqui na F-04 (config da SRS §30).
+        else
+          echo "[lint] skip backend: backend/go.mod ainda não existe (F-04)"
+        fi
+        if ls frontend/eslint.config.* >/dev/null 2>&1; then
+          echo "[lint] frontend: eslint + prettier --check"
+          (cd frontend && pnpm exec eslint . && pnpm exec prettier --check .) || STATUS=1
+        else
+          echo "[lint] skip frontend: sem eslint.config.* (configurado na F-07)"
+        fi
+        exit $STATUS
+
+  typecheck:
+    desc: "go build; vue-tsc quando configurado (F-07)"
+    cmds:
+      - |
+        STATUS=0
+        if [ -f backend/go.mod ]; then
+          echo "[typecheck] backend: go build ./... (binários descartados em dir temporário)"
+          BUILD_DIR=$(mktemp -d)
+          (cd backend && go build -o "$BUILD_DIR/" ./...) || STATUS=1
+          rm -rf "$BUILD_DIR"
+        else
+          echo "[typecheck] skip backend: backend/go.mod ainda não existe (F-04)"
+        fi
+        if [ -f frontend/tsconfig.json ]; then
+          echo "[typecheck] frontend: vue-tsc --noEmit"
+          (cd frontend && pnpm exec vue-tsc --noEmit) || STATUS=1
+        else
+          echo "[typecheck] skip frontend: frontend/tsconfig.json ainda não existe (F-07)"
+        fi
+        exit $STATUS
+
+  testes:
+    desc: "go test; Vitest quando configurado (F-07)"
+    cmds:
+      - |
+        STATUS=0
+        if [ -f backend/go.mod ]; then
+          echo "[testes] backend: go test ./..."
+          (cd backend && go test ./...) || STATUS=1
+        else
+          echo "[testes] skip backend: backend/go.mod ainda não existe (F-04)"
+        fi
+        if ls frontend/vitest.config.* >/dev/null 2>&1; then
+          echo "[testes] frontend: vitest run"
+          (cd frontend && pnpm exec vitest run) || STATUS=1
+        else
+          echo "[testes] skip frontend: sem vitest.config.* (configurado na F-07)"
+        fi
+        exit $STATUS
+
+  varreduras:
+    desc: "Gitleaks obrigatório (RS-060/RS-066); OSV/govulncheck entram em F-04"
+    cmds:
+      - |
+        if ! command -v gitleaks >/dev/null 2>&1; then
+          echo "[varreduras] ERRO: gitleaks não instalado — instale com 'brew install gitleaks' (ver README). Sem sucesso silencioso (AGENTS.md §9)." >&2
+          exit 1
+        fi
+        echo "[varreduras] gitleaks detect"
+        gitleaks detect --source . --verbose
+        # OSV-Scanner e govulncheck entram aqui quando houver dependências (F-04, SRS §27/RS-061).

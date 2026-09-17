@@ -1,0 +1,17 @@
+# backend/sqlc.yaml — geração do acesso a dados (F-03).
+# Fonte: SRS §19 (`task gerar:sql` roda `sqlc generate` na raiz de backend/).
+# Engine PostgreSQL + pgx v5. O schema é a verdade versionada das migrações
+# goose; as queries nomeadas vivem em queries/ (RS-031: só SQL parametrizado).
+# Gerado em backend/internal/db/ — nunca editar à mão (AGENTS.md §4.1).
+# Ferramenta verificada: sqlc v1.29.0.
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "queries"
+    schema: "migrations"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        sql_package: "pgx/v5"
+        emit_json_tags: true

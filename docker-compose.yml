@@ -1,12 +1,12 @@
-# docker-compose.yml — PostgreSQL local para dev/testes (F-01)
+# docker-compose.yml — PostgreSQL local para dev/testes (F-01, rev. pós-review)
 # Fonte: SRS §17, §19 (`task dev`).
 #
-# NOTA DE SEGURANÇA (RS-004/RS-060): as credenciais abaixo são APENAS para o
-# banco local de desenvolvimento/testes criado pelo `task dev`. Nunca são
-# usadas em produção/preview (lá a conexão usa secrets do Neon via GitHub
-# Secrets/Vercel). Podem ser sobrescritas via ambiente (ver .env.example
-# futuro em tarefa própria) ou variáveis POSTGRES_*.
-# Nenhum usuário/senha de aplicação é criado aqui.
+# SEGURANÇA (AGENTS.md §4.6, RS-060): este arquivo NÃO define nenhuma
+# credencial — POSTGRES_USER e POSTGRES_PASSWORD são obrigatórios e vêm do
+# ambiente ou do arquivo `.env` local (não versionado, ver .env.example).
+# São credenciais APENAS do banco local de dev/testes; produção/preview usam
+# secrets do Neon via GitHub Secrets/Vercel, nunca este arquivo.
+# A porta é publicada SOMENTE em loopback (nunca 0.0.0.0).
 
 name: erp-escola
 
@@ -17,15 +17,15 @@ services:
     image: postgres:17.11-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-sacre}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sacre_local_dev_only}
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env (ver .env.example)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (ver .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-erp_escola}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-sacre} -d $${POSTGRES_DB:-erp_escola}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:?} -d $${POSTGRES_DB:-erp_escola}"]
       interval: 5s
       timeout: 5s
       retries: 10

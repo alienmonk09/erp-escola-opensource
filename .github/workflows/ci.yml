@@ -1,17 +1,16 @@
-# ci.yml — pipeline esqueleto da fundação (F-01)
+# ci.yml — pipeline esqueleto da fundação (F-01, rev. pós-review)
 # Fonte: SRS §27 (filtros por caminho, concurrency, cache, paralelismo),
 # RS-061 (Actions fixadas por hash de commit), RS-062 (PRs de fork rodam sem
 # secrets — nenhum trigger privilegiado que exponha secrets a código de terceiros).
 #
-# Estado em F-01: jobs com a estrutura final (§27), mas em modo esqueleto —
-# cada job detecta se sua entrada existe (api/, backend/, frontend/) e, se
-# não existir, registra "esqueleto" e passa. F-02…F-10 preenchem os gates
-# reais (Redocly, gerar:checar, testes, E2E) sem mudar filtros nem pinos.
+# Estado em F-01: jobs com a estrutura final (§27). Os gates de backend e
+# frontend já executam de verdade contra o hello vazio (F-01); Redocly entra
+# em F-02, golangci-lint/govulncheck em F-04, Vitest/ESLint em F-07.
 # E2E/Lighthouse/ZAP/backup ficam SÓ na main ou agendados — nunca por PR (§27).
 #
-# Todas as actions estão fixadas por HASH DE COMMIT (RS-061); o comentário
-# `# vX.Y.Z` ao lado registra a tag correspondente, verificada em 2026-09-16
-# via `git ls-remote` nos repositórios oficiais.
+# Todas as actions estão fixadas por HASH DE COMMIT (RS-061) no formato
+# `owner/repo@SHA`; o comentário `# vX.Y.Z` registra a tag correspondente,
+# verificada em 2026-09-16 via `git ls-remote` nos repositórios oficiais.
 
 name: ci
 
@@ -28,6 +27,8 @@ concurrency:
 
 jobs:
   # Detecta o que mudou para filtrar os jobs seguintes (§27).
+  # Falha fechada: se o diff não puder ser calculado, o workflow falha em vez
+  # de liberar gates com filtros falsos (AGENTS.md §9).
   mudancas:
     name: detectar mudanças
     runs-on: ubuntu-latest
@@ -36,16 +37,32 @@ jobs:
       frontend: ${{ steps.filtro.outputs.frontend }}
       contrato: ${{ steps.filtro.outputs.contrato }}
     steps:
-      - uses: actions/checkout/fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # Histórico completo: o diff precisa da base e do head (SRS §27).
+          fetch-depth: 0
       - id: filtro
+        shell: bash
         run: |
-          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
           echo "Base de diff: $BASE"
-          ARQUIVOS=$(git diff --name-only "$BASE" "${{ github.sha }}" || git diff --name-only HEAD~1 HEAD || true)
+          # Base zerada (ex.: push inicial): sem diff confiável, falha fechada.
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "ERRO: base zerada, impossível calcular o diff — falhando em vez de pular gates." >&2
+            exit 1
+          fi
+          ARQUIVOS=$(git diff --name-only "$BASE" "${{ github.sha }}")
           echo "$ARQUIVOS"
-          echo "backend=false" >> "$GITHUB_OUTPUT"
-          echo "frontend=false" >> "$GITHUB_OUTPUT"
-          echo "contrato=false" >> "$GITHUB_OUTPUT"
+          {
+            echo "backend=false"
+            echo "frontend=false"
+            echo "contrato=false"
+          } >> "$GITHUB_OUTPUT"
           echo "$ARQUIVOS" | grep -Eq '^(backend/|api/)' && echo "backend=true" >> "$GITHUB_OUTPUT" || true
           echo "$ARQUIVOS" | grep -Eq '^(frontend/|api/)' && echo "frontend=true" >> "$GITHUB_OUTPUT" || true
           echo "$ARQUIVOS" | grep -Eq '^api/' && echo "contrato=true" >> "$GITHUB_OUTPUT" || true
@@ -57,19 +74,30 @@ jobs:
     if: needs.mudancas.outputs.backend == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout/fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      # Portão de existência: setups só rodam quando há módulo Go (a partir da
+      # F-01 o hello existe, então este gate passa; mantido para robustez).
+      - id: existe
+        run: |
+          if [ -f backend/go.mod ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
       - name: Setup Go
-        # Versão espelha mise.toml (F-01: 1.27.1).
-        uses: actions/setup-go/40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        if: steps.existe.outputs.go == 'true'
+        # Versão espelha mise.toml (F-01: 1.27.1). Sem cache-dependency-path:
+        # o hello é stdlib-only (sem go.sum); o cache de módulos é ligado em
+        # F-04 com a primeira dependência externa (SRS §27).
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.27.1"
-          cache-dependency-path: backend/go.sum
+          cache: false
       - name: Setup Task (versão fixada)
-        run: go install github.com/go-task/task/v3/cmd/task@v3.53.1
-      - name: Gate backend (esqueleto F-01)
+        if: steps.existe.outputs.go == 'true'
         run: |
-          if [ ! -f backend/go.mod ]; then
-            echo "esqueleto F-01: backend/go.mod ainda não existe (criado na F-04) — gate real entra em F-04 (build, golangci-lint, govulncheck, testes, gerar:checar)"
+          go install github.com/go-task/task/v3/cmd/task@v3.53.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Gate backend
+        run: |
+          if [ "${{ steps.existe.outputs.go }}" != "true" ]; then
+            echo "sem backend/go.mod — nada a fiscalizar"
             exit 0
           fi
           task lint && task gerar:checar
@@ -81,24 +109,41 @@ jobs:
     if: needs.mudancas.outputs.frontend == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout/fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - id: existe
+        run: |
+          if [ -f frontend/package.json ]; then echo "node=true" >> "$GITHUB_OUTPUT"; else echo "node=false" >> "$GITHUB_OUTPUT"; fi
       - name: Setup pnpm
-        uses: pnpm/action-setup/fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        if: steps.existe.outputs.node == 'true'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: 10.19.0
       - name: Setup Node
-        # Versão espelha mise.toml (F-01: 24.21.0).
-        uses: actions/setup-node/49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.existe.outputs.node == 'true'
+        # Versão espelha mise.toml (F-01: 24.21.0). Cache pnpm com o lockfile
+        # versionado (RS-061); existe desde a F-01 (hello frontend).
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24.21.0"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
-      - name: Gate frontend (esqueleto F-01)
+      - name: Setup Go + Task (runner das tasks do Taskfile)
+        if: steps.existe.outputs.node == 'true'
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.1"
+          cache: false
+      - run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.53.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+        if: steps.existe.outputs.node == 'true'
+      - name: Gate frontend
         run: |
-          if [ ! -f frontend/package.json ]; then
-            echo "esqueleto F-01: frontend/package.json ainda não existe (criado na F-07) — gate real entra em F-07 (ESLint, Prettier, vue-tsc, Vitest, gerar:checar)"
+          if [ "${{ steps.existe.outputs.node }}" != "true" ]; then
+            echo "sem frontend/package.json — nada a fiscalizar"
             exit 0
           fi
+          pnpm --dir frontend install --frozen-lockfile
           task typecheck && task testes && task gerar:checar
 
   contrato:
@@ -108,20 +153,21 @@ jobs:
     if: needs.mudancas.outputs.contrato == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout/fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Setup pnpm
-        uses: pnpm/action-setup/fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: 10.19.0
       - name: Setup Node
-        uses: actions/setup-node/49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24.21.0"
-          cache: pnpm
-      - name: Gate contrato (esqueleto F-01)
+        # Sem `cache: pnpm` aqui: este job não tem lockfile próprio; o cache
+        # de dependências do contrato é ligado em F-02 (SRS §27).
+      - name: Gate contrato
         run: |
           if [ ! -f api/openapi.yaml ]; then
-            echo "esqueleto F-01: api/openapi.yaml ainda não existe (criado na F-02) — Redocly lint entra em F-02"
+            echo "api/openapi.yaml ainda não existe (criado na F-02) — Redocly lint entra em F-02"
             exit 0
           fi
           npx -y @redocly/cli lint api/openapi.yaml
@@ -133,16 +179,16 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout/fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
       - name: Gitleaks (segredos no repo — RS-060/RS-066)
-        uses: gitleaks/gitleaks-action/ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Portões futuros (memória F-01)
         run: |
-          echo "OSV-Scanner, govulncheck e zizmor entram neste job em F-04 (SRS §27/§28, RS-061) — sem código ainda, nada a varrer."
+          echo "OSV-Scanner, govulncheck e zizmor entram neste job em F-04 (SRS §27/§28, RS-061)."
       - name: Falhar se algum gate anterior falhou
         if: ${{ contains(needs.*.result, 'failure') }}
         run: |

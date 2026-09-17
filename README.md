@@ -97,3 +97,4 @@ e2e/                    # Playwright (fases finais)
 - Nenhum segredo no repo (`.env` ignorado; produção via secrets do GitHub/Vercel).
 - Só dados fictícios em fixtures/testes — nunca dados reais de aluno/responsável.
 - Dependência fora da stack exige ADR e aprovação humana antes.
+

@@ -114,6 +114,8 @@ Total: 24 tarefas. Dependência entre fases: Fase N só começa com a anterior m
 
 ### F-04 — Auth: sessão, RBAC, rate limiting, headers, health
 
+- **Status:** 🟡 em revisão.
+
 - **Dependências:** F-02, F-03.
 - **Requisitos atendidos:** SRS §9, §12, §25; RF-001, RF-002, RF-008; RS-001, RS-003, RS-005, RS-006, RS-010, RS-012, RS-020..023, RS-040, RS-050, RS-051; AM-001, AM-002.
 - **Contexto mínimo:** Backend Go + chi. Sessão scs + pgxstore, cookie `__Host-` (HttpOnly, Secure, SameSite=Strict), inatividade 30 min / absoluto 12 h, renova ID no login (RS-005), troca de senha encerra todas as sessões (RS-006). Middleware único de autorização: scopes do OpenAPI → perfis no banco (§9), negar por padrão. Rate limiting httprate com contador no PG (login 5/min/IP + bloqueio progressivo RS-012). `http.CrossOriginProtection` nas mutações. Headers unrolled/secure. Health `/api/saude` (sem banco) e `/api/saude/pronto` (com banco). Auditoria de login/falha sem dados pessoais (RS-010/066). Hash argon2id (alexedwards/argon2id).

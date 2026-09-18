@@ -105,7 +105,7 @@ jobs:
         # `task gerar:sql` exige o binário; sem ele o gate gerar:checar falha.
         # Versão espelha a usada no desenvolvimento da F-03.
         run: |
-          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Setup pnpm
         if: steps.existe.outputs.go == 'true'

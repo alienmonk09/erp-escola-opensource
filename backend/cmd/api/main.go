@@ -1,38 +1,57 @@
-// main.go — hello vazio da fundação (F-01).
-//
-// Sobe o backend com `task dev` para cumprir o aceite local ("backend sobe,
-// mesmo que com hello vazio"). Sem negócio, sem banco, sem sessão: só
-// GET /api/saude → {"status":"ok"}. Handlers reais chegam em F-04 (SRS §12).
-// Escuta SOMENTE em loopback.
+// main.go — API F-04: sessão, RBAC, rate limit, headers, health.
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
+
+	"github.com/alienmonk09/erp-escola-opensource/backend/internal/auth"
+	"github.com/alienmonk09/erp-escola-opensource/backend/internal/config"
+	"github.com/alienmonk09/erp-escola-opensource/backend/internal/servidor"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func saude(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, `{"erro":"metodo_nao_permitido"}`, http.StatusMethodNotAllowed)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-}
-
 func main() {
-	porta := os.Getenv("PORT")
-	if porta == "" {
-		porta = "8080"
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
+	cfg, err := config.Carregar()
+	if err != nil {
+		slog.Error("config invalida")
+		os.Exit(1)
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/saude", saude)
-	endereco := "127.0.0.1:" + porta
-	slog.Info("backend hello no ar", "endereco", "http://"+endereco)
-	if err := http.ListenAndServe(endereco, mux); err != nil {
-		slog.Error("backend encerrou", "erro", err)
+
+	ctx := context.Background()
+	pcfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("database_url invalida")
+		os.Exit(1)
+	}
+	// Pooler Neon: QueryExecModeExec evita prepared statements no pooler
+	// ([VERIFICAR] SRS §31 item 9).
+	pcfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
+	pool, err := pgxpool.NewWithConfig(ctx, pcfg)
+	if err != nil {
+		slog.Error("pool pgx falhou")
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	sess := auth.NovaSessao(pool, cfg.CookieSecure)
+	h := servidor.Novo(pool, sess)
+
+	endereco := "127.0.0.1:" + cfg.Porta
+	srv := &http.Server{
+		Addr:              endereco,
+		Handler:           h,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	slog.Info("backend no ar", "endereco", "http://"+endereco)
+	if err := srv.ListenAndServe(); err != nil {
+		slog.Error("backend encerrou")
 		os.Exit(1)
 	}
 }

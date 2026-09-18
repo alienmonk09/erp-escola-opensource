@@ -63,7 +63,7 @@
 2. Corpo do PR preenchido: **ID da tarefa, agente e modelo usados, requisitos atendidos (IDs), o que mudou, riscos, como testar** (RS-067 rastreabilidade).
 3. Título em Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`…) com o ID da tarefa.
 4. Se a tarefa alterou requisito: atualize a matriz de rastreabilidade (SRS §14) no mesmo PR.
-5. Marque a tarefa como "em revisão" no ROADMAP.
+5. Antes de pedir revisão: `git fetch origin` e, se a `main` andou, `git rebase origin/main` + `task verificar` de novo. O status da tarefa vive no Multica — **não** edite `docs/ROADMAP.md` para marcar status em cada PR.
 
 ## 9. Quando uma verificação falha
 
@@ -81,3 +81,10 @@
 - [ ] PR com ID da tarefa, agente/modelo e requisitos atendidos
 - [ ] Documentação do SRS/tutorial atualizada quando o comportamento visível mudou
 - [ ] Nenhuma proibição da seção 4 violada
+- [ ] Merge conforme a seção 11 (revisor após APROVADO; humano em F-09/F-10 e em PR que altere o `AGENTS.md`)
+
+## 11. Merge do PR (governança GOV-01)
+
+- Após `VEREDITO: APROVADO` na issue, emitido por agente de modelo diferente do autor (Diretiva 4), o **revisor** arma o merge rodando `gh pr merge <n> --auto --merge`. O GitHub conclui o merge somente com os checks obrigatórios verdes (branch protection na `main`, que vale inclusive para admin).
+- **Proibido:** usar `--admin`; o autor mergear o próprio PR; merge sem veredito APROVADO registrado na issue; alterar a branch protection.
+- **Exceções com merge humano:** F-09 e F-10 (marcos de fase) e qualquer PR que altere este `AGENTS.md` — o revisor só posta o veredito e avisa o humano.

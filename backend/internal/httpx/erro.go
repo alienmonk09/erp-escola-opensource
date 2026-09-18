@@ -28,4 +28,6 @@ const (
 	MsgLimite      = "Limite de tentativas excedido."
 	MsgInterno     = "Erro interno."
 	MsgPayload     = "Payload inválido."
+	MsgTroca       = "Troca de senha obrigatória."
+	MsgTotp        = "Cadastro do autenticador pendente."
 )

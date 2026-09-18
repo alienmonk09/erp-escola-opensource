@@ -69,3 +69,75 @@ export const ConfirmarTotpResponse = zod.object({
   "pedeTotp": zod.boolean().describe('Verdadeiro quando o login exige concluir o TOTP (RF-002).'),
   "usuarioId": zod.uuid().optional().describe('Identificador do usuário dono da sessão.')
 }).describe('Sessão aberta (F-04 implementa; aqui só o formato).')
+
+
+/**
+ * Conta própria (RF-003, RS-009). `acao=iniciar` gera o segredo e devolve o `otpauthUrl` para o cadastro guiado; `acao=confirmar` valida o código e ativa o TOTP (efetiva sessão pré-login quando houver); `acao=desativar` desliga o 2FA opcional. Perfis com 2FA obrigatório (FIN/RH/DIR/ADM, §9) não podem desativar (403). Aceita sessão pré-login (cadastro após o primeiro login, RF-002) ou efetivada. Mutação: exige confirmação de origem CSRF (RS-040). Segredo nunca em log (RS-066); códigos nunca persistidos. Rate limit (RS-050).
+ * @summary Iniciar, confirmar ou desativar o 2FA próprio
+ */
+export const gerirTotpProprioBodyCodigoRegExp = new RegExp('^[0-9]{6}$');
+
+
+export const GerirTotpProprioBody = zod.object({
+  "acao": zod.enum(['iniciar', 'confirmar', 'desativar']),
+  "codigo": zod.string().regex(gerirTotpProprioBodyCodigoRegExp).optional()
+}).describe('Gestão do 2FA próprio (RF-003). `iniciar` dispensa `codigo`; `confirmar` e `desativar` exigem o código de 6 dígitos (validado no backend; códigos nunca persistidos, RS-010).')
+
+export const gerirTotpProprioResponseSegredoMax = 100;
+
+export const gerirTotpProprioResponseOtpauthUrlMax = 500;
+
+
+
+export const GerirTotpProprioResponse = zod.object({
+  "segredo": zod.string().max(gerirTotpProprioResponseSegredoMax).optional().describe('Segredo TOTP em base32 (só em `iniciar`; cadastrar e guardar no autenticador).'),
+  "otpauthUrl": zod.string().max(gerirTotpProprioResponseOtpauthUrlMax).optional().describe('URL otpauth:// para QR code no autenticador (só em `iniciar`).'),
+  "pedeTotp": zod.boolean().optional().describe('Verdadeiro enquanto a sessão seguir pré-login (RF-002).'),
+  "usuarioId": zod.uuid().optional().describe('Identificador do usuário dono da sessão.')
+}).describe('Resposta da gestão do 2FA próprio. `iniciar` devolve `segredo` + `otpauthUrl` (cadastrar no autenticador e confirmar em seguida); `confirmar` devolve a sessão efetivada (`pedeTotp: false`).')
+
+
+/**
+ * Conta própria (RS-006). Valida a senha atual, grava o novo hash argon2id (RS-001), limpa `senha_temporaria`/`troca_obrigatoria` e encerra todas as sessões do usuário (RS-006), auditada (RS-010). Aceita sessão pré-login quando há troca obrigatória pendente (RF-004/RF-005). Mutação: exige confirmação de origem CSRF (RS-040). Rate limit (RS-050).
+ * @summary Trocar a própria senha
+ */
+export const trocarSenhaPropriaBodySenhaAtualMax = 256;
+
+export const trocarSenhaPropriaBodySenhaNovaMax = 256;
+
+
+
+export const TrocarSenhaPropriaBody = zod.object({
+  "senhaAtual": zod.string().min(1).max(trocarSenhaPropriaBodySenhaAtualMax),
+  "senhaNova": zod.string().min(1).max(trocarSenhaPropriaBodySenhaNovaMax)
+}).describe('Troca da própria senha (RS-006). A nova senha não pode repetir a atual.')
+
+export const TrocarSenhaPropriaResponse = zod.void()
+
+
+/**
+ * Administração (RF-005, RS-007). Exige scope `admin:usuarios:gerenciar` (SRS §9, só ADM). Gera senha temporária de uso único, força troca no próximo login (`troca_obrigatoria`), encerra as sessões do usuário (RS-006) e audita (RS-010). A temporária é devolvida uma única vez nesta resposta; nunca em log (RS-066). Mutação: exige confirmação de origem CSRF (RS-040). Rate limit (RS-050).
+ * @summary Redefinir a senha de um usuário (temporária de uso único)
+ */
+export const RedefinirSenhaUsuarioParams = zod.object({
+  "id": zod.uuid().describe('Identificador do usuário alvo.')
+})
+
+export const redefinirSenhaUsuarioResponseSenhaTemporariaMax = 100;
+
+
+
+export const RedefinirSenhaUsuarioResponse = zod.object({
+  "senhaTemporaria": zod.string().max(redefinirSenhaUsuarioResponseSenhaTemporariaMax)
+}).describe('Senha temporária de uso único (RF-005, RS-007). Devolvida uma única vez; exige troca no próximo login.')
+
+
+/**
+ * Administração (RF-007, RS-008). Exige scope `admin:usuarios:gerenciar` (SRS §9, só ADM). O administrador revalida a identidade por contato direto + conferência cadastral (procedimento RS-008, fora da API) e reinicia o cadastro TOTP; o 2FA obrigatório não é desligado, só reiniciado — o usuário refaz o cadastro guiado no próximo login (RF-002). Encerra as sessões do usuário e audita (RS-010). Mutação: exige confirmação de origem CSRF (RS-040). Rate limit (RS-050).
+ * @summary Reiniciar o TOTP de um usuário (autenticador perdido)
+ */
+export const ReiniciarTotpUsuarioParams = zod.object({
+  "id": zod.uuid().describe('Identificador do usuário alvo.')
+})
+
+export const ReiniciarTotpUsuarioResponse = zod.void()

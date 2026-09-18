@@ -7,6 +7,10 @@
  */
 
 export * from './conflitoRegraResponse';
+export * from './contaSenhaEntrada';
+export * from './contaTotpEntrada';
+export * from './contaTotpEntradaAcao';
+export * from './contaTotpResposta';
 export * from './erro';
 export * from './erroCampo';
 export * from './erroErro';
@@ -25,6 +29,7 @@ export * from './prontidaoStatus';
 export * from './saude';
 export * from './saudeStatus';
 export * from './semPermissaoResponse';
+export * from './senhaRedefinicaoResposta';
 export * from './sessao';
 export * from './sessaoCriarEntrada';
 export * from './totpConfirmarEntrada';

@@ -7,7 +7,8 @@
 
 -- name: GetUsuarioPorEmail :one
 SELECT id, nome, email, hash_senha, senha_temporaria, troca_obrigatoria,
-       totp_secreto_cifrado, totp_ativo, ativo, criado_em, atualizado_em
+       totp_secreto_cifrado, totp_ativo, ativo, criado_em, atualizado_em,
+       sessoes_invalidas_antes_de
 FROM usuario
 WHERE email = $1
 LIMIT 1;

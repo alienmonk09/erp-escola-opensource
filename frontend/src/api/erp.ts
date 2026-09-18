@@ -26,13 +26,19 @@ import {
 } from 'vue';
 
 import type {
+  ContaSenhaEntrada,
+  ContaTotpEntrada,
+  ContaTotpResposta,
   Erro,
   ErroInternoResponse,
   LimiteExcedidoResponse,
   NaoAutenticadoResponse,
+  NaoEncontradoResponse,
   PayloadInvalidoResponse,
   Prontidao,
   Saude,
+  SemPermissaoResponse,
+  SenhaRedefinicaoResposta,
   Sessao,
   SessaoCriarEntrada,
   TotpConfirmarEntrada
@@ -621,4 +627,516 @@ export const useConfirmarTotp = <TError = PayloadInvalidoResponse | NaoAutentica
         TContext
       > => {
       return useMutation(getConfirmarTotpMutationOptions(options), queryClient);
+    }
+
+export type gerirTotpProprioResponse200 = {
+  data: ContaTotpResposta
+  status: 200
+}
+
+export type gerirTotpProprioResponse400 = {
+  data: PayloadInvalidoResponse
+  status: 400
+}
+
+export type gerirTotpProprioResponse401 = {
+  data: NaoAutenticadoResponse
+  status: 401
+}
+
+export type gerirTotpProprioResponse403 = {
+  data: SemPermissaoResponse
+  status: 403
+}
+
+export type gerirTotpProprioResponse429 = {
+  data: LimiteExcedidoResponse
+  status: 429
+}
+
+export type gerirTotpProprioResponse500 = {
+  data: ErroInternoResponse
+  status: 500
+}
+
+export type gerirTotpProprioResponseSuccess = (gerirTotpProprioResponse200) & {
+  headers: Headers;
+};
+export type gerirTotpProprioResponseError = (gerirTotpProprioResponse400 | gerirTotpProprioResponse401 | gerirTotpProprioResponse403 | gerirTotpProprioResponse429 | gerirTotpProprioResponse500) & {
+  headers: Headers;
+};
+
+export type gerirTotpProprioResponse = (gerirTotpProprioResponseSuccess | gerirTotpProprioResponseError)
+
+export const getGerirTotpProprioUrl = () => {
+
+
+
+
+  return `/api/conta/totp`
+}
+
+/**
+ * Conta própria (RF-003, RS-009). `acao=iniciar` gera o segredo e devolve o `otpauthUrl` para o cadastro guiado; `acao=confirmar` valida o código e ativa o TOTP (efetiva sessão pré-login quando houver); `acao=desativar` desliga o 2FA opcional. Perfis com 2FA obrigatório (FIN/RH/DIR/ADM, §9) não podem desativar (403). Aceita sessão pré-login (cadastro após o primeiro login, RF-002) ou efetivada. Mutação: exige confirmação de origem CSRF (RS-040). Segredo nunca em log (RS-066); códigos nunca persistidos. Rate limit (RS-050).
+ * @summary Iniciar, confirmar ou desativar o 2FA próprio
+ */
+export const gerirTotpProprio = async (contaTotpEntrada: ContaTotpEntrada, options?: RequestInit): Promise<gerirTotpProprioResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getGerirTotpProprioUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(contaTotpEntrada)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: gerirTotpProprioResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as gerirTotpProprioResponse
+}
+
+
+
+
+
+export const getGerirTotpProprioMutationKey = () => ['gerirTotpProprio'] as const;
+
+export const getGerirTotpProprioMutationOptions = <TError = PayloadInvalidoResponse | NaoAutenticadoResponse | SemPermissaoResponse | LimiteExcedidoResponse | ErroInternoResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof gerirTotpProprio>>, TError,GerirTotpProprioMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof gerirTotpProprio>>, TError,GerirTotpProprioMutationVariables, TContext> => {
+
+const mutationKey = getGerirTotpProprioMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof gerirTotpProprio>>, GerirTotpProprioMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  gerirTotpProprio(data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GerirTotpProprioMutationResult = NonNullable<Awaited<ReturnType<typeof gerirTotpProprio>>>
+    export type GerirTotpProprioMutationBody = ContaTotpEntrada
+    export type GerirTotpProprioMutationError = PayloadInvalidoResponse | NaoAutenticadoResponse | SemPermissaoResponse | LimiteExcedidoResponse | ErroInternoResponse
+    export type GerirTotpProprioMutationVariables = {data: ContaTotpEntrada}
+
+    /**
+ * @summary Iniciar, confirmar ou desativar o 2FA próprio
+ */
+export const useGerirTotpProprio = <TError = PayloadInvalidoResponse | NaoAutenticadoResponse | SemPermissaoResponse | LimiteExcedidoResponse | ErroInternoResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof gerirTotpProprio>>, TError,GerirTotpProprioMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationReturnType<
+        Awaited<ReturnType<typeof gerirTotpProprio>>,
+        TError,
+        GerirTotpProprioMutationVariables,
+        TContext
+      > => {
+      return useMutation(getGerirTotpProprioMutationOptions(options), queryClient);
+    }
+
+export type trocarSenhaPropriaResponse204 = {
+  data: void
+  status: 204
+}
+
+export type trocarSenhaPropriaResponse400 = {
+  data: PayloadInvalidoResponse
+  status: 400
+}
+
+export type trocarSenhaPropriaResponse401 = {
+  data: NaoAutenticadoResponse
+  status: 401
+}
+
+export type trocarSenhaPropriaResponse429 = {
+  data: LimiteExcedidoResponse
+  status: 429
+}
+
+export type trocarSenhaPropriaResponse500 = {
+  data: ErroInternoResponse
+  status: 500
+}
+
+export type trocarSenhaPropriaResponseSuccess = (trocarSenhaPropriaResponse204) & {
+  headers: Headers;
+};
+export type trocarSenhaPropriaResponseError = (trocarSenhaPropriaResponse400 | trocarSenhaPropriaResponse401 | trocarSenhaPropriaResponse429 | trocarSenhaPropriaResponse500) & {
+  headers: Headers;
+};
+
+export type trocarSenhaPropriaResponse = (trocarSenhaPropriaResponseSuccess | trocarSenhaPropriaResponseError)
+
+export const getTrocarSenhaPropriaUrl = () => {
+
+
+
+
+  return `/api/conta/senha`
+}
+
+/**
+ * Conta própria (RS-006). Valida a senha atual, grava o novo hash argon2id (RS-001), limpa `senha_temporaria`/`troca_obrigatoria` e encerra todas as sessões do usuário (RS-006), auditada (RS-010). Aceita sessão pré-login quando há troca obrigatória pendente (RF-004/RF-005). Mutação: exige confirmação de origem CSRF (RS-040). Rate limit (RS-050).
+ * @summary Trocar a própria senha
+ */
+export const trocarSenhaPropria = async (contaSenhaEntrada: ContaSenhaEntrada, options?: RequestInit): Promise<trocarSenhaPropriaResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getTrocarSenhaPropriaUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(contaSenhaEntrada)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: trocarSenhaPropriaResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as trocarSenhaPropriaResponse
+}
+
+
+
+
+
+export const getTrocarSenhaPropriaMutationKey = () => ['trocarSenhaPropria'] as const;
+
+export const getTrocarSenhaPropriaMutationOptions = <TError = PayloadInvalidoResponse | NaoAutenticadoResponse | LimiteExcedidoResponse | ErroInternoResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trocarSenhaPropria>>, TError,TrocarSenhaPropriaMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof trocarSenhaPropria>>, TError,TrocarSenhaPropriaMutationVariables, TContext> => {
+
+const mutationKey = getTrocarSenhaPropriaMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof trocarSenhaPropria>>, TrocarSenhaPropriaMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  trocarSenhaPropria(data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TrocarSenhaPropriaMutationResult = NonNullable<Awaited<ReturnType<typeof trocarSenhaPropria>>>
+    export type TrocarSenhaPropriaMutationBody = ContaSenhaEntrada
+    export type TrocarSenhaPropriaMutationError = PayloadInvalidoResponse | NaoAutenticadoResponse | LimiteExcedidoResponse | ErroInternoResponse
+    export type TrocarSenhaPropriaMutationVariables = {data: ContaSenhaEntrada}
+
+    /**
+ * @summary Trocar a própria senha
+ */
+export const useTrocarSenhaPropria = <TError = PayloadInvalidoResponse | NaoAutenticadoResponse | LimiteExcedidoResponse | ErroInternoResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trocarSenhaPropria>>, TError,TrocarSenhaPropriaMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationReturnType<
+        Awaited<ReturnType<typeof trocarSenhaPropria>>,
+        TError,
+        TrocarSenhaPropriaMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTrocarSenhaPropriaMutationOptions(options), queryClient);
+    }
+
+export type redefinirSenhaUsuarioResponse200 = {
+  data: SenhaRedefinicaoResposta
+  status: 200
+}
+
+export type redefinirSenhaUsuarioResponse400 = {
+  data: PayloadInvalidoResponse
+  status: 400
+}
+
+export type redefinirSenhaUsuarioResponse401 = {
+  data: NaoAutenticadoResponse
+  status: 401
+}
+
+export type redefinirSenhaUsuarioResponse403 = {
+  data: SemPermissaoResponse
+  status: 403
+}
+
+export type redefinirSenhaUsuarioResponse404 = {
+  data: NaoEncontradoResponse
+  status: 404
+}
+
+export type redefinirSenhaUsuarioResponse429 = {
+  data: LimiteExcedidoResponse
+  status: 429
+}
+
+export type redefinirSenhaUsuarioResponse500 = {
+  data: ErroInternoResponse
+  status: 500
+}
+
+export type redefinirSenhaUsuarioResponseSuccess = (redefinirSenhaUsuarioResponse200) & {
+  headers: Headers;
+};
+export type redefinirSenhaUsuarioResponseError = (redefinirSenhaUsuarioResponse400 | redefinirSenhaUsuarioResponse401 | redefinirSenhaUsuarioResponse403 | redefinirSenhaUsuarioResponse404 | redefinirSenhaUsuarioResponse429 | redefinirSenhaUsuarioResponse500) & {
+  headers: Headers;
+};
+
+export type redefinirSenhaUsuarioResponse = (redefinirSenhaUsuarioResponseSuccess | redefinirSenhaUsuarioResponseError)
+
+export const getRedefinirSenhaUsuarioUrl = (id: string,) => {
+
+
+
+
+  return `/api/usuarios/${id}/senha-redefinicao`
+}
+
+/**
+ * Administração (RF-005, RS-007). Exige scope `admin:usuarios:gerenciar` (SRS §9, só ADM). Gera senha temporária de uso único, força troca no próximo login (`troca_obrigatoria`), encerra as sessões do usuário (RS-006) e audita (RS-010). A temporária é devolvida uma única vez nesta resposta; nunca em log (RS-066). Mutação: exige confirmação de origem CSRF (RS-040). Rate limit (RS-050).
+ * @summary Redefinir a senha de um usuário (temporária de uso único)
+ */
+export const redefinirSenhaUsuario = async (id: string, options?: RequestInit): Promise<redefinirSenhaUsuarioResponse> => {
+
+  const res = await fetch(getRedefinirSenhaUsuarioUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: redefinirSenhaUsuarioResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as redefinirSenhaUsuarioResponse
+}
+
+
+
+
+
+export const getRedefinirSenhaUsuarioMutationKey = () => ['redefinirSenhaUsuario'] as const;
+
+export const getRedefinirSenhaUsuarioMutationOptions = <TError = PayloadInvalidoResponse | NaoAutenticadoResponse | SemPermissaoResponse | NaoEncontradoResponse | LimiteExcedidoResponse | ErroInternoResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redefinirSenhaUsuario>>, TError,RedefinirSenhaUsuarioMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof redefinirSenhaUsuario>>, TError,RedefinirSenhaUsuarioMutationVariables, TContext> => {
+
+const mutationKey = getRedefinirSenhaUsuarioMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof redefinirSenhaUsuario>>, RedefinirSenhaUsuarioMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  redefinirSenhaUsuario(id,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RedefinirSenhaUsuarioMutationResult = NonNullable<Awaited<ReturnType<typeof redefinirSenhaUsuario>>>
+
+    export type RedefinirSenhaUsuarioMutationError = PayloadInvalidoResponse | NaoAutenticadoResponse | SemPermissaoResponse | NaoEncontradoResponse | LimiteExcedidoResponse | ErroInternoResponse
+    export type RedefinirSenhaUsuarioMutationVariables = {id: string}
+
+    /**
+ * @summary Redefinir a senha de um usuário (temporária de uso único)
+ */
+export const useRedefinirSenhaUsuario = <TError = PayloadInvalidoResponse | NaoAutenticadoResponse | SemPermissaoResponse | NaoEncontradoResponse | LimiteExcedidoResponse | ErroInternoResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redefinirSenhaUsuario>>, TError,RedefinirSenhaUsuarioMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationReturnType<
+        Awaited<ReturnType<typeof redefinirSenhaUsuario>>,
+        TError,
+        RedefinirSenhaUsuarioMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRedefinirSenhaUsuarioMutationOptions(options), queryClient);
+    }
+
+export type reiniciarTotpUsuarioResponse204 = {
+  data: void
+  status: 204
+}
+
+export type reiniciarTotpUsuarioResponse401 = {
+  data: NaoAutenticadoResponse
+  status: 401
+}
+
+export type reiniciarTotpUsuarioResponse403 = {
+  data: SemPermissaoResponse
+  status: 403
+}
+
+export type reiniciarTotpUsuarioResponse404 = {
+  data: NaoEncontradoResponse
+  status: 404
+}
+
+export type reiniciarTotpUsuarioResponse429 = {
+  data: LimiteExcedidoResponse
+  status: 429
+}
+
+export type reiniciarTotpUsuarioResponse500 = {
+  data: ErroInternoResponse
+  status: 500
+}
+
+export type reiniciarTotpUsuarioResponseSuccess = (reiniciarTotpUsuarioResponse204) & {
+  headers: Headers;
+};
+export type reiniciarTotpUsuarioResponseError = (reiniciarTotpUsuarioResponse401 | reiniciarTotpUsuarioResponse403 | reiniciarTotpUsuarioResponse404 | reiniciarTotpUsuarioResponse429 | reiniciarTotpUsuarioResponse500) & {
+  headers: Headers;
+};
+
+export type reiniciarTotpUsuarioResponse = (reiniciarTotpUsuarioResponseSuccess | reiniciarTotpUsuarioResponseError)
+
+export const getReiniciarTotpUsuarioUrl = (id: string,) => {
+
+
+
+
+  return `/api/usuarios/${id}/totp-reinicio`
+}
+
+/**
+ * Administração (RF-007, RS-008). Exige scope `admin:usuarios:gerenciar` (SRS §9, só ADM). O administrador revalida a identidade por contato direto + conferência cadastral (procedimento RS-008, fora da API) e reinicia o cadastro TOTP; o 2FA obrigatório não é desligado, só reiniciado — o usuário refaz o cadastro guiado no próximo login (RF-002). Encerra as sessões do usuário e audita (RS-010). Mutação: exige confirmação de origem CSRF (RS-040). Rate limit (RS-050).
+ * @summary Reiniciar o TOTP de um usuário (autenticador perdido)
+ */
+export const reiniciarTotpUsuario = async (id: string, options?: RequestInit): Promise<reiniciarTotpUsuarioResponse> => {
+
+  const res = await fetch(getReiniciarTotpUsuarioUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: reiniciarTotpUsuarioResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as reiniciarTotpUsuarioResponse
+}
+
+
+
+
+
+export const getReiniciarTotpUsuarioMutationKey = () => ['reiniciarTotpUsuario'] as const;
+
+export const getReiniciarTotpUsuarioMutationOptions = <TError = NaoAutenticadoResponse | SemPermissaoResponse | NaoEncontradoResponse | LimiteExcedidoResponse | ErroInternoResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reiniciarTotpUsuario>>, TError,ReiniciarTotpUsuarioMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof reiniciarTotpUsuario>>, TError,ReiniciarTotpUsuarioMutationVariables, TContext> => {
+
+const mutationKey = getReiniciarTotpUsuarioMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reiniciarTotpUsuario>>, ReiniciarTotpUsuarioMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  reiniciarTotpUsuario(id,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReiniciarTotpUsuarioMutationResult = NonNullable<Awaited<ReturnType<typeof reiniciarTotpUsuario>>>
+
+    export type ReiniciarTotpUsuarioMutationError = NaoAutenticadoResponse | SemPermissaoResponse | NaoEncontradoResponse | LimiteExcedidoResponse | ErroInternoResponse
+    export type ReiniciarTotpUsuarioMutationVariables = {id: string}
+
+    /**
+ * @summary Reiniciar o TOTP de um usuário (autenticador perdido)
+ */
+export const useReiniciarTotpUsuario = <TError = NaoAutenticadoResponse | SemPermissaoResponse | NaoEncontradoResponse | LimiteExcedidoResponse | ErroInternoResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reiniciarTotpUsuario>>, TError,ReiniciarTotpUsuarioMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationReturnType<
+        Awaited<ReturnType<typeof reiniciarTotpUsuario>>,
+        TError,
+        ReiniciarTotpUsuarioMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReiniciarTotpUsuarioMutationOptions(options), queryClient);
     }

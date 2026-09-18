@@ -59,17 +59,18 @@ type Session struct {
 }
 
 type Usuario struct {
-	ID                 pgtype.UUID        `json:"id"`
-	Nome               string             `json:"nome"`
-	Email              string             `json:"email"`
-	HashSenha          string             `json:"hash_senha"`
-	SenhaTemporaria    bool               `json:"senha_temporaria"`
-	TrocaObrigatoria   bool               `json:"troca_obrigatoria"`
-	TotpSecretoCifrado []byte             `json:"totp_secreto_cifrado"`
-	TotpAtivo          bool               `json:"totp_ativo"`
-	Ativo              bool               `json:"ativo"`
-	CriadoEm           pgtype.Timestamptz `json:"criado_em"`
-	AtualizadoEm       pgtype.Timestamptz `json:"atualizado_em"`
+	ID                      pgtype.UUID        `json:"id"`
+	Nome                    string             `json:"nome"`
+	Email                   string             `json:"email"`
+	HashSenha               string             `json:"hash_senha"`
+	SenhaTemporaria         bool               `json:"senha_temporaria"`
+	TrocaObrigatoria        bool               `json:"troca_obrigatoria"`
+	TotpSecretoCifrado      []byte             `json:"totp_secreto_cifrado"`
+	TotpAtivo               bool               `json:"totp_ativo"`
+	Ativo                   bool               `json:"ativo"`
+	CriadoEm                pgtype.Timestamptz `json:"criado_em"`
+	AtualizadoEm            pgtype.Timestamptz `json:"atualizado_em"`
+	SessoesInvalidasAntesDe pgtype.Timestamptz `json:"sessoes_invalidas_antes_de"`
 }
 
 type UsuarioPerfil struct {

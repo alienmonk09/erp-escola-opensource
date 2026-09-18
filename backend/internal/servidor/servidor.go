@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/alienmonk09/erp-escola-opensource/backend/internal/auditoria"
@@ -29,7 +30,9 @@ func Novo(pool *pgxpool.Pool, sess *scs.SessionManager) http.Handler {
 	r.Use(csrfMutacoes)
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if req.Method == http.MethodPost && req.URL.Path == "/api/sessao" {
+			// Rate limit (RS-050/051): login e fluxos sensíveis da F-05
+			// (TOTP, troca, redefinição e reinício) com contador no PG.
+			if loginOuSensivel(req.Method, req.URL.Path) {
 				auth.LimitadorLogin(q).Handler(next).ServeHTTP(w, req)
 				return
 			}
@@ -52,6 +55,23 @@ func Novo(pool *pgxpool.Pool, sess *scs.SessionManager) http.Handler {
 		},
 	})
 	return httpapi.HandlerWithOptions(strict, httpapi.ChiServerOptions{BaseRouter: r})
+}
+
+// loginOuSensivel diz se a rota entra no rate limit por IP com contador no
+// PG (RS-050/051): login, validação TOTP, conta própria e gestão de usuários.
+func loginOuSensivel(metodo, caminho string) bool {
+	if metodo != http.MethodPost {
+		return false
+	}
+	switch caminho {
+	case "/api/sessao", "/api/sessao/totp", "/api/conta/totp", "/api/conta/senha":
+		return true
+	}
+	if strings.HasPrefix(caminho, "/api/usuarios/") &&
+		(strings.HasSuffix(caminho, "/senha-redefinicao") || strings.HasSuffix(caminho, "/totp-reinicio")) {
+		return true
+	}
+	return false
 }
 
 func cabecalhos() func(http.Handler) http.Handler {

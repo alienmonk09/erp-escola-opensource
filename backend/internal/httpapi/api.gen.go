@@ -11,8 +11,30 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for ContaTotpEntradaAcao.
+const (
+	Confirmar ContaTotpEntradaAcao = "confirmar"
+	Desativar ContaTotpEntradaAcao = "desativar"
+	Iniciar   ContaTotpEntradaAcao = "iniciar"
+)
+
+// Valid indicates whether the value is a known member of the ContaTotpEntradaAcao enum.
+func (e ContaTotpEntradaAcao) Valid() bool {
+	switch e {
+	case Confirmar:
+		return true
+	case Desativar:
+		return true
+	case Iniciar:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for ErroErroCodigo.
 const (
@@ -92,6 +114,36 @@ func (e SaudeStatus) Valid() bool {
 	}
 }
 
+// ContaSenhaEntrada Troca da própria senha (RS-006). A nova senha não pode repetir a atual.
+type ContaSenhaEntrada struct {
+	SenhaAtual string `json:"senhaAtual"`
+	SenhaNova  string `json:"senhaNova"`
+}
+
+// ContaTotpEntrada Gestão do 2FA próprio (RF-003). `iniciar` dispensa `codigo`; `confirmar` e `desativar` exigem o código de 6 dígitos (validado no backend; códigos nunca persistidos, RS-010).
+type ContaTotpEntrada struct {
+	Acao   ContaTotpEntradaAcao `json:"acao"`
+	Codigo *string              `json:"codigo,omitempty"`
+}
+
+// ContaTotpEntradaAcao defines model for ContaTotpEntrada.Acao.
+type ContaTotpEntradaAcao string
+
+// ContaTotpResposta Resposta da gestão do 2FA próprio. `iniciar` devolve `segredo` + `otpauthUrl` (cadastrar no autenticador e confirmar em seguida); `confirmar` devolve a sessão efetivada (`pedeTotp: false`).
+type ContaTotpResposta struct {
+	// OtpauthUrl URL otpauth:// para QR code no autenticador (só em `iniciar`).
+	OtpauthUrl *string `json:"otpauthUrl,omitempty"`
+
+	// PedeTotp Verdadeiro enquanto a sessão seguir pré-login (RF-002).
+	PedeTotp *bool `json:"pedeTotp,omitempty"`
+
+	// Segredo Segredo TOTP em base32 (só em `iniciar`; cadastrar e guardar no autenticador).
+	Segredo *string `json:"segredo,omitempty"`
+
+	// UsuarioId Identificador do usuário dono da sessão.
+	UsuarioId *openapi_types.UUID `json:"usuarioId,omitempty"`
+}
+
 // Erro Envelope de erro padrão — todos os erros, sem exceção (SRS §15.3).
 type Erro struct {
 	Erro struct {
@@ -134,6 +186,11 @@ type Saude struct {
 // SaudeStatus defines model for Saude.Status.
 type SaudeStatus string
 
+// SenhaRedefinicaoResposta Senha temporária de uso único (RF-005, RS-007). Devolvida uma única vez; exige troca no próximo login.
+type SenhaRedefinicaoResposta struct {
+	SenhaTemporaria string `json:"senhaTemporaria"`
+}
+
 // Sessao Sessão aberta (F-04 implementa; aqui só o formato).
 type Sessao struct {
 	// PedeTotp Verdadeiro quando o login exige concluir o TOTP (RF-002).
@@ -163,8 +220,20 @@ type LimiteExcedido = Erro
 // NaoAutenticado Envelope de erro padrão — todos os erros, sem exceção (SRS §15.3).
 type NaoAutenticado = Erro
 
+// NaoEncontrado Envelope de erro padrão — todos os erros, sem exceção (SRS §15.3).
+type NaoEncontrado = Erro
+
 // PayloadInvalido Envelope de erro padrão — todos os erros, sem exceção (SRS §15.3).
 type PayloadInvalido = Erro
+
+// SemPermissao Envelope de erro padrão — todos os erros, sem exceção (SRS §15.3).
+type SemPermissao = Erro
+
+// TrocarSenhaPropriaJSONRequestBody defines body for TrocarSenhaPropria for application/json ContentType.
+type TrocarSenhaPropriaJSONRequestBody = ContaSenhaEntrada
+
+// GerirTotpProprioJSONRequestBody defines body for GerirTotpProprio for application/json ContentType.
+type GerirTotpProprioJSONRequestBody = ContaTotpEntrada
 
 // CriarSessaoJSONRequestBody defines body for CriarSessao for application/json ContentType.
 type CriarSessaoJSONRequestBody = SessaoCriarEntrada
@@ -174,6 +243,12 @@ type ConfirmarTotpJSONRequestBody = TotpConfirmarEntrada
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// TrocarSenhaPropria Trocar a própria senha
+	// (POST /api/conta/senha)
+	TrocarSenhaPropria(w http.ResponseWriter, r *http.Request)
+	// GerirTotpProprio Iniciar, confirmar ou desativar o 2FA próprio
+	// (POST /api/conta/totp)
+	GerirTotpProprio(w http.ResponseWriter, r *http.Request)
 	// LerSaude Saúde sem banco
 	// (GET /api/saude)
 	LerSaude(w http.ResponseWriter, r *http.Request)
@@ -189,11 +264,29 @@ type ServerInterface interface {
 	// ConfirmarTotp Validar TOTP e efetivar sessão
 	// (POST /api/sessao/totp)
 	ConfirmarTotp(w http.ResponseWriter, r *http.Request)
+	// RedefinirSenhaUsuario Redefinir a senha de um usuário (temporária de uso único)
+	// (POST /api/usuarios/{id}/senha-redefinicao)
+	RedefinirSenhaUsuario(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// ReiniciarTotpUsuario Reiniciar o TOTP de um usuário (autenticador perdido)
+	// (POST /api/usuarios/{id}/totp-reinicio)
+	ReiniciarTotpUsuario(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// TrocarSenhaPropria Trocar a própria senha
+// (POST /api/conta/senha)
+func (_ Unimplemented) TrocarSenhaPropria(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GerirTotpProprio Iniciar, confirmar ou desativar o 2FA próprio
+// (POST /api/conta/totp)
+func (_ Unimplemented) GerirTotpProprio(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // LerSaude Saúde sem banco
 // (GET /api/saude)
@@ -225,6 +318,18 @@ func (_ Unimplemented) ConfirmarTotp(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// RedefinirSenhaUsuario Redefinir a senha de um usuário (temporária de uso único)
+// (POST /api/usuarios/{id}/senha-redefinicao)
+func (_ Unimplemented) RedefinirSenhaUsuario(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ReiniciarTotpUsuario Reiniciar o TOTP de um usuário (autenticador perdido)
+// (POST /api/usuarios/{id}/totp-reinicio)
+func (_ Unimplemented) ReiniciarTotpUsuario(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler            ServerInterface
@@ -233,6 +338,34 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// TrocarSenhaPropria operation middleware
+func (siw *ServerInterfaceWrapper) TrocarSenhaPropria(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TrocarSenhaPropria(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GerirTotpProprio operation middleware
+func (siw *ServerInterfaceWrapper) GerirTotpProprio(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GerirTotpProprio(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // LerSaude operation middleware
 func (siw *ServerInterfaceWrapper) LerSaude(w http.ResponseWriter, r *http.Request) {
@@ -295,6 +428,58 @@ func (siw *ServerInterfaceWrapper) ConfirmarTotp(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ConfirmarTotp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RedefinirSenhaUsuario operation middleware
+func (siw *ServerInterfaceWrapper) RedefinirSenhaUsuario(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RedefinirSenhaUsuario(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReiniciarTotpUsuario operation middleware
+func (siw *ServerInterfaceWrapper) ReiniciarTotpUsuario(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReiniciarTotpUsuario(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -432,6 +617,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/sessao/totp", wrapper.ConfirmarTotp)
 	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/conta/totp", wrapper.GerirTotpProprio)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/conta/senha", wrapper.TrocarSenhaPropria)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/usuarios/{id}/senha-redefinicao", wrapper.RedefinirSenhaUsuario)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/usuarios/{id}/totp-reinicio", wrapper.ReiniciarTotpUsuario)
+	})
 
 	return r
 }
@@ -442,7 +639,175 @@ type LimiteExcedidoJSONResponse Erro
 
 type NaoAutenticadoJSONResponse Erro
 
+type NaoEncontradoJSONResponse Erro
+
 type PayloadInvalidoJSONResponse Erro
+
+type SemPermissaoJSONResponse Erro
+
+type TrocarSenhaPropriaRequestObject struct {
+	Body *TrocarSenhaPropriaJSONRequestBody
+}
+
+type TrocarSenhaPropriaResponseObject interface {
+	VisitTrocarSenhaPropriaResponse(w http.ResponseWriter) error
+}
+
+type TrocarSenhaPropria204Response struct {
+}
+
+func (response TrocarSenhaPropria204Response) VisitTrocarSenhaPropriaResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type TrocarSenhaPropria400JSONResponse struct{ PayloadInvalidoJSONResponse }
+
+func (response TrocarSenhaPropria400JSONResponse) VisitTrocarSenhaPropriaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrocarSenhaPropria401JSONResponse struct{ NaoAutenticadoJSONResponse }
+
+func (response TrocarSenhaPropria401JSONResponse) VisitTrocarSenhaPropriaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrocarSenhaPropria429JSONResponse struct{ LimiteExcedidoJSONResponse }
+
+func (response TrocarSenhaPropria429JSONResponse) VisitTrocarSenhaPropriaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TrocarSenhaPropria500JSONResponse struct{ ErroInternoJSONResponse }
+
+func (response TrocarSenhaPropria500JSONResponse) VisitTrocarSenhaPropriaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GerirTotpProprioRequestObject struct {
+	Body *GerirTotpProprioJSONRequestBody
+}
+
+type GerirTotpProprioResponseObject interface {
+	VisitGerirTotpProprioResponse(w http.ResponseWriter) error
+}
+
+type GerirTotpProprio200JSONResponse ContaTotpResposta
+
+func (response GerirTotpProprio200JSONResponse) VisitGerirTotpProprioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GerirTotpProprio400JSONResponse struct{ PayloadInvalidoJSONResponse }
+
+func (response GerirTotpProprio400JSONResponse) VisitGerirTotpProprioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GerirTotpProprio401JSONResponse struct{ NaoAutenticadoJSONResponse }
+
+func (response GerirTotpProprio401JSONResponse) VisitGerirTotpProprioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GerirTotpProprio403JSONResponse struct{ SemPermissaoJSONResponse }
+
+func (response GerirTotpProprio403JSONResponse) VisitGerirTotpProprioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GerirTotpProprio429JSONResponse struct{ LimiteExcedidoJSONResponse }
+
+func (response GerirTotpProprio429JSONResponse) VisitGerirTotpProprioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GerirTotpProprio500JSONResponse struct{ ErroInternoJSONResponse }
+
+func (response GerirTotpProprio500JSONResponse) VisitGerirTotpProprioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type LerSaudeRequestObject struct {
 }
@@ -713,8 +1078,206 @@ func (response ConfirmarTotp500JSONResponse) VisitConfirmarTotpResponse(w http.R
 	return err
 }
 
+type RedefinirSenhaUsuarioRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type RedefinirSenhaUsuarioResponseObject interface {
+	VisitRedefinirSenhaUsuarioResponse(w http.ResponseWriter) error
+}
+
+type RedefinirSenhaUsuario200JSONResponse SenhaRedefinicaoResposta
+
+func (response RedefinirSenhaUsuario200JSONResponse) VisitRedefinirSenhaUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RedefinirSenhaUsuario400JSONResponse struct{ PayloadInvalidoJSONResponse }
+
+func (response RedefinirSenhaUsuario400JSONResponse) VisitRedefinirSenhaUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RedefinirSenhaUsuario401JSONResponse struct{ NaoAutenticadoJSONResponse }
+
+func (response RedefinirSenhaUsuario401JSONResponse) VisitRedefinirSenhaUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RedefinirSenhaUsuario403JSONResponse struct{ SemPermissaoJSONResponse }
+
+func (response RedefinirSenhaUsuario403JSONResponse) VisitRedefinirSenhaUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RedefinirSenhaUsuario404JSONResponse struct{ NaoEncontradoJSONResponse }
+
+func (response RedefinirSenhaUsuario404JSONResponse) VisitRedefinirSenhaUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RedefinirSenhaUsuario429JSONResponse struct{ LimiteExcedidoJSONResponse }
+
+func (response RedefinirSenhaUsuario429JSONResponse) VisitRedefinirSenhaUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RedefinirSenhaUsuario500JSONResponse struct{ ErroInternoJSONResponse }
+
+func (response RedefinirSenhaUsuario500JSONResponse) VisitRedefinirSenhaUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReiniciarTotpUsuarioRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type ReiniciarTotpUsuarioResponseObject interface {
+	VisitReiniciarTotpUsuarioResponse(w http.ResponseWriter) error
+}
+
+type ReiniciarTotpUsuario204Response struct {
+}
+
+func (response ReiniciarTotpUsuario204Response) VisitReiniciarTotpUsuarioResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ReiniciarTotpUsuario401JSONResponse struct{ NaoAutenticadoJSONResponse }
+
+func (response ReiniciarTotpUsuario401JSONResponse) VisitReiniciarTotpUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReiniciarTotpUsuario403JSONResponse struct{ SemPermissaoJSONResponse }
+
+func (response ReiniciarTotpUsuario403JSONResponse) VisitReiniciarTotpUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReiniciarTotpUsuario404JSONResponse struct{ NaoEncontradoJSONResponse }
+
+func (response ReiniciarTotpUsuario404JSONResponse) VisitReiniciarTotpUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReiniciarTotpUsuario429JSONResponse struct{ LimiteExcedidoJSONResponse }
+
+func (response ReiniciarTotpUsuario429JSONResponse) VisitReiniciarTotpUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReiniciarTotpUsuario500JSONResponse struct{ ErroInternoJSONResponse }
+
+func (response ReiniciarTotpUsuario500JSONResponse) VisitReiniciarTotpUsuarioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// TrocarSenhaPropria Trocar a própria senha
+	// (POST /api/conta/senha)
+	TrocarSenhaPropria(ctx context.Context, request TrocarSenhaPropriaRequestObject) (TrocarSenhaPropriaResponseObject, error)
+	// GerirTotpProprio Iniciar, confirmar ou desativar o 2FA próprio
+	// (POST /api/conta/totp)
+	GerirTotpProprio(ctx context.Context, request GerirTotpProprioRequestObject) (GerirTotpProprioResponseObject, error)
 	// LerSaude Saúde sem banco
 	// (GET /api/saude)
 	LerSaude(ctx context.Context, request LerSaudeRequestObject) (LerSaudeResponseObject, error)
@@ -730,6 +1293,12 @@ type StrictServerInterface interface {
 	// ConfirmarTotp Validar TOTP e efetivar sessão
 	// (POST /api/sessao/totp)
 	ConfirmarTotp(ctx context.Context, request ConfirmarTotpRequestObject) (ConfirmarTotpResponseObject, error)
+	// RedefinirSenhaUsuario Redefinir a senha de um usuário (temporária de uso único)
+	// (POST /api/usuarios/{id}/senha-redefinicao)
+	RedefinirSenhaUsuario(ctx context.Context, request RedefinirSenhaUsuarioRequestObject) (RedefinirSenhaUsuarioResponseObject, error)
+	// ReiniciarTotpUsuario Reiniciar o TOTP de um usuário (autenticador perdido)
+	// (POST /api/usuarios/{id}/totp-reinicio)
+	ReiniciarTotpUsuario(ctx context.Context, request ReiniciarTotpUsuarioRequestObject) (ReiniciarTotpUsuarioResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -769,6 +1338,68 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// TrocarSenhaPropria operation middleware
+func (sh *strictHandler) TrocarSenhaPropria(w http.ResponseWriter, r *http.Request) {
+	var request TrocarSenhaPropriaRequestObject
+
+	var body TrocarSenhaPropriaJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TrocarSenhaPropria(ctx, request.(TrocarSenhaPropriaRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TrocarSenhaPropria")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TrocarSenhaPropriaResponseObject); ok {
+		if err := validResponse.VisitTrocarSenhaPropriaResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GerirTotpProprio operation middleware
+func (sh *strictHandler) GerirTotpProprio(w http.ResponseWriter, r *http.Request) {
+	var request GerirTotpProprioRequestObject
+
+	var body GerirTotpProprioJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GerirTotpProprio(ctx, request.(GerirTotpProprioRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GerirTotpProprio")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GerirTotpProprioResponseObject); ok {
+		if err := validResponse.VisitGerirTotpProprioResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // LerSaude operation middleware
@@ -898,6 +1529,58 @@ func (sh *strictHandler) ConfirmarTotp(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ConfirmarTotpResponseObject); ok {
 		if err := validResponse.VisitConfirmarTotpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RedefinirSenhaUsuario operation middleware
+func (sh *strictHandler) RedefinirSenhaUsuario(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request RedefinirSenhaUsuarioRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RedefinirSenhaUsuario(ctx, request.(RedefinirSenhaUsuarioRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RedefinirSenhaUsuario")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RedefinirSenhaUsuarioResponseObject); ok {
+		if err := validResponse.VisitRedefinirSenhaUsuarioResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReiniciarTotpUsuario operation middleware
+func (sh *strictHandler) ReiniciarTotpUsuario(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request ReiniciarTotpUsuarioRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReiniciarTotpUsuario(ctx, request.(ReiniciarTotpUsuarioRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReiniciarTotpUsuario")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReiniciarTotpUsuarioResponseObject); ok {
+		if err := validResponse.VisitReiniciarTotpUsuarioResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

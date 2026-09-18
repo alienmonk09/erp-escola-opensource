@@ -22,6 +22,10 @@ tags:
     description: Sondas de saúde (públicas, sem dados — RS-052).
   - name: Sessao
     description: Login, TOTP e logout (RF-001, RF-002, RF-008).
+  - name: Conta
+    description: Conta própria — TOTP opcional e troca de senha (RF-003, RS-006, RS-009).
+  - name: Usuarios
+    description: Gestão de usuários por administrador (RF-005, RF-007, RS-007, RS-008).
 paths:
   /api/saude:
     get:
@@ -143,6 +147,156 @@ paths:
           $ref: '#/components/responses/PayloadInvalido'
         '401':
           $ref: '#/components/responses/NaoAutenticado'
+        '429':
+          $ref: '#/components/responses/LimiteExcedido'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+  /api/conta/totp:
+    post:
+      operationId: gerirTotpProprio
+      summary: Iniciar, confirmar ou desativar o 2FA próprio
+      description: >-
+        Conta própria (RF-003, RS-009). `acao=iniciar` gera o segredo e devolve
+        o `otpauthUrl` para o cadastro guiado; `acao=confirmar` valida o código
+        e ativa o TOTP (efetiva sessão pré-login quando houver); `acao=desativar`
+        desliga o 2FA opcional. Perfis com 2FA obrigatório (FIN/RH/DIR/ADM, §9)
+        não podem desativar (403). Aceita sessão pré-login (cadastro após o
+        primeiro login, RF-002) ou efetivada. Mutação: exige confirmação de
+        origem CSRF (RS-040). Segredo nunca em log (RS-066); códigos nunca
+        persistidos. Rate limit (RS-050).
+      tags:
+        - Conta
+      security:
+        - sessaoCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContaTotpEntrada'
+      responses:
+        '200':
+          description: Operação concluída (iniciar devolve `otpauthUrl`; confirmar devolve a sessão).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContaTotpResposta'
+        '400':
+          $ref: '#/components/responses/PayloadInvalido'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '429':
+          $ref: '#/components/responses/LimiteExcedido'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+  /api/conta/senha:
+    post:
+      operationId: trocarSenhaPropria
+      summary: Trocar a própria senha
+      description: >-
+        Conta própria (RS-006). Valida a senha atual, grava o novo hash argon2id
+        (RS-001), limpa `senha_temporaria`/`troca_obrigatoria` e encerra todas
+        as sessões do usuário (RS-006), auditada (RS-010). Aceita sessão
+        pré-login quando há troca obrigatória pendente (RF-004/RF-005).
+        Mutação: exige confirmação de origem CSRF (RS-040). Rate limit (RS-050).
+      tags:
+        - Conta
+      security:
+        - sessaoCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContaSenhaEntrada'
+      responses:
+        '204':
+          description: Senha trocada; todas as sessões encerradas (novo login necessário).
+        '400':
+          $ref: '#/components/responses/PayloadInvalido'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '429':
+          $ref: '#/components/responses/LimiteExcedido'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+  /api/usuarios/{id}/senha-redefinicao:
+    post:
+      operationId: redefinirSenhaUsuario
+      summary: Redefinir a senha de um usuário (temporária de uso único)
+      description: >-
+        Administração (RF-005, RS-007). Exige scope `admin:usuarios:gerenciar`
+        (SRS §9, só ADM). Gera senha temporária de uso único, força troca no
+        próximo login (`troca_obrigatoria`), encerra as sessões do usuário
+        (RS-006) e audita (RS-010). A temporária é devolvida uma única vez
+        nesta resposta; nunca em log (RS-066). Mutação: exige confirmação de
+        origem CSRF (RS-040). Rate limit (RS-050).
+      tags:
+        - Usuarios
+      security:
+        - sessaoCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador do usuário alvo.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Senha redefinida; devolve a temporária de uso único.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SenhaRedefinicaoResposta'
+        '400':
+          $ref: '#/components/responses/PayloadInvalido'
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '429':
+          $ref: '#/components/responses/LimiteExcedido'
+        '500':
+          $ref: '#/components/responses/ErroInterno'
+  /api/usuarios/{id}/totp-reinicio:
+    post:
+      operationId: reiniciarTotpUsuario
+      summary: Reiniciar o TOTP de um usuário (autenticador perdido)
+      description: >-
+        Administração (RF-007, RS-008). Exige scope `admin:usuarios:gerenciar`
+        (SRS §9, só ADM). O administrador revalida a identidade por contato
+        direto + conferência cadastral (procedimento RS-008, fora da API) e
+        reinicia o cadastro TOTP; o 2FA obrigatório não é desligado, só
+        reiniciado — o usuário refaz o cadastro guiado no próximo login
+        (RF-002). Encerra as sessões do usuário e audita (RS-010). Mutação:
+        exige confirmação de origem CSRF (RS-040). Rate limit (RS-050).
+      tags:
+        - Usuarios
+      security:
+        - sessaoCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador do usuário alvo.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: TOTP reiniciado; sessões do usuário encerradas.
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
         '429':
           $ref: '#/components/responses/LimiteExcedido'
         '500':
@@ -326,6 +480,72 @@ components:
         codigo:
           type: string
           pattern: ^[0-9]{6}$
+    ContaTotpEntrada:
+      description: >-
+        Gestão do 2FA próprio (RF-003). `iniciar` dispensa `codigo`;
+        `confirmar` e `desativar` exigem o código de 6 dígitos (validado no
+        backend; códigos nunca persistidos, RS-010).
+      type: object
+      required:
+        - acao
+      properties:
+        acao:
+          type: string
+          enum:
+            - iniciar
+            - confirmar
+            - desativar
+        codigo:
+          type: string
+          pattern: ^[0-9]{6}$
+    ContaTotpResposta:
+      description: >-
+        Resposta da gestão do 2FA próprio. `iniciar` devolve `segredo` +
+        `otpauthUrl` (cadastrar no autenticador e confirmar em seguida);
+        `confirmar` devolve a sessão efetivada (`pedeTotp: false`).
+      type: object
+      properties:
+        segredo:
+          description: Segredo TOTP em base32 (só em `iniciar`; cadastrar e guardar no autenticador).
+          type: string
+          maxLength: 100
+        otpauthUrl:
+          description: URL otpauth:// para QR code no autenticador (só em `iniciar`).
+          type: string
+          maxLength: 500
+        pedeTotp:
+          description: Verdadeiro enquanto a sessão seguir pré-login (RF-002).
+          type: boolean
+        usuarioId:
+          description: Identificador do usuário dono da sessão.
+          type: string
+          format: uuid
+    ContaSenhaEntrada:
+      description: Troca da própria senha (RS-006). A nova senha não pode repetir a atual.
+      type: object
+      required:
+        - senhaAtual
+        - senhaNova
+      properties:
+        senhaAtual:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 256
+        senhaNova:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 256
+    SenhaRedefinicaoResposta:
+      description: Senha temporária de uso único (RF-005, RS-007). Devolvida uma única vez; exige troca no próximo login.
+      type: object
+      required:
+        - senhaTemporaria
+      properties:
+        senhaTemporaria:
+          type: string
+          maxLength: 100
     Sessao:
       description: Sessão aberta (F-04 implementa; aqui só o formato).
       type: object

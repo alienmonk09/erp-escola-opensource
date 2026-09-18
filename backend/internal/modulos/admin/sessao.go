@@ -1,4 +1,5 @@
-// Package admin implementa as rotas de sessão da F-04 (TOTP em F-05).
+// Package admin implementa as rotas de sessão, conta e gestão de usuários
+// (F-04 sessão; F-05 TOTP + senha).
 package admin
 
 import (
@@ -7,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/alexedwards/argon2id"
 	"github.com/alexedwards/scs/v2"
@@ -112,12 +114,9 @@ func (a API) CriarSessao(ctx context.Context, req httpapi.CriarSessaoRequestObje
 		slog.Error("sessao renovar falhou")
 		return internoCriar(), nil
 	}
-	if token := a.Sessao.Token(ctx); token != "" {
-		_ = a.Queries.VincularSessaoUsuario(ctx, db.VincularSessaoUsuarioParams{
-			Token:     token,
-			UsuarioID: u.ID,
-		})
-	}
+	// O vínculo token→usuário (sessao_usuario, RS-006) é gravado pelo
+	// middleware vincularSessao após o commit do scs (ver servidor.Novo):
+	// aqui a linha da sessão ainda não existe e a FK falharia.
 	_ = auth.LimparFalhas(ctx, a.Queries, email)
 	a.Auditoria.LoginOK(ctx, u.ID, r)
 
@@ -145,26 +144,93 @@ func (a API) EncerrarSessao(ctx context.Context, _ httpapi.EncerrarSessaoRequest
 	return httpapi.EncerrarSessao204Response{}, nil
 }
 
-func (a API) ConfirmarTotp(ctx context.Context, _ httpapi.ConfirmarTotpRequestObject) (httpapi.ConfirmarTotpResponseObject, error) {
-	return httpapi.ConfirmarTotp401JSONResponse{
+func (a API) ConfirmarTotp(ctx context.Context, req httpapi.ConfirmarTotpRequestObject) (httpapi.ConfirmarTotpResponseObject, error) {
+	r := requestDe(ctx)
+	naoAuth := httpapi.ConfirmarTotp401JSONResponse{
 		NaoAutenticadoJSONResponse: httpapi.NaoAutenticadoJSONResponse(httpx.Envelope(httpapi.ErroErroCodigoNaoAutenticado, httpx.MsgCredenciais)),
-	}, nil
+	}
+	if req.Body == nil || !auth.ValidarFormato(req.Body.Codigo) {
+		return httpapi.ConfirmarTotp400JSONResponse{
+			PayloadInvalidoJSONResponse: httpapi.PayloadInvalidoJSONResponse(httpx.Envelope(httpapi.ErroErroCodigoPayloadInvalido, httpx.MsgPayload)),
+		}, nil
+	}
+	uid := auth.UsuarioID(ctx, a.Sessao)
+	if uid == "" {
+		return naoAuth, nil
+	}
+	// Sessão já efetivada: segundo fator concluído antes (idempotente).
+	if !auth.PreLogin(ctx, a.Sessao) {
+		id, err := uuid.Parse(uid)
+		if err != nil {
+			return naoAuth, nil
+		}
+		oid := openapi_types.UUID(id)
+		return httpapi.ConfirmarTotp200JSONResponse{PedeTotp: false, UsuarioId: &oid}, nil
+	}
+	id, err := uuid.Parse(uid)
+	if err != nil {
+		return naoAuth, nil
+	}
+	uidPG := pgtype.UUID{Bytes: id, Valid: true}
+	u, err := a.Queries.GetUsuarioPorID(ctx, uidPG)
+	if err != nil || !u.Ativo {
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			slog.Error("totp consulta falhou")
+			return internoConfirmar(), nil
+		}
+		a.Auditoria.TotpFalha(ctx, uidPG, r)
+		return naoAuth, nil
+	}
+	if u.SessoesInvalidasAntesDe.Valid &&
+		auth.Revogada(ctx, a.Sessao, u.SessoesInvalidasAntesDe.Time.UnixNano(), true) {
+		// Sessão encerrada por troca/redefinição/reinício (RS-006).
+		a.Auditoria.TotpFalha(ctx, u.ID, r)
+		return naoAuth, nil
+	}
+	if !u.TotpAtivo || len(u.TotpSecretoCifrado) == 0 {
+		// Sem cadastro: concluir via POST /api/conta/totp (RF-002).
+		a.Auditoria.TotpFalha(ctx, u.ID, r)
+		return naoAuth, nil
+	}
+	claro, err := auth.DecifrarSegredo(u.TotpSecretoCifrado)
+	if err != nil {
+		slog.Error("totp decifrar falhou")
+		return internoConfirmar(), nil
+	}
+	if !auth.ValidarCodigo(claro, req.Body.Codigo) {
+		a.Auditoria.TotpFalha(ctx, u.ID, r)
+		return naoAuth, nil
+	}
+	if err := auth.Efetivar(ctx, a.Sessao); err != nil {
+		slog.Error("totp efetivar falhou")
+		return internoConfirmar(), nil
+	}
+	a.Auditoria.TotpOK(ctx, u.ID, r)
+	oid := openapi_types.UUID(u.ID.Bytes)
+	return httpapi.ConfirmarTotp200JSONResponse{PedeTotp: false, UsuarioId: &oid}, nil
+}
+
+func internoConfirmar() httpapi.ConfirmarTotpResponseObject {
+	return httpapi.ConfirmarTotp500JSONResponse{
+		ErroInternoJSONResponse: httpapi.ErroInternoJSONResponse(httpx.Envelope(httpapi.ErroErroCodigoErroInterno, httpx.MsgInterno)),
+	}
 }
 
 func pedeTOTP(u db.Usuario, perfis []string) bool {
-	if u.TotpAtivo {
-		return true
-	}
-	for _, p := range perfis {
-		switch p {
-		case "FIN", "RH", "DIR", "ADM":
-			return true
-		}
-	}
-	return false
+	return auth.ExigeTOTP(u.TotpAtivo, perfis)
 }
 
-// EncerrarTodas invalida sessões persistidas do usuário (RS-006).
+// EncerrarTodas invalida as sessões do usuário (RS-006): carimba
+// `sessoes_invalidas_antes_de` com o relógio da aplicação — o mesmo da
+// `criada_em` gravada na sessão — e remove por melhor esforço os vínculos
+// token→usuário mapeados. Sessões mais antigas que o carimbo passam a 401
+// no middleware e nos handlers de segundo fator.
 func EncerrarTodas(ctx context.Context, q *db.Queries, usuarioID pgtype.UUID) error {
+	if err := q.InvalidarSessoesDoUsuario(ctx, db.InvalidarSessoesDoUsuarioParams{
+		ID:                      usuarioID,
+		SessoesInvalidasAntesDe: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+	}); err != nil {
+		return err
+	}
 	return q.EncerrarSessoesDoUsuario(ctx, usuarioID)
 }

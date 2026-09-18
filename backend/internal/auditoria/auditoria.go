@@ -29,7 +29,49 @@ func (r Registro) AcessoNegado(ctx context.Context, usuario pgtype.UUID, req *ht
 	r.gravar(ctx, usuario, "acesso_negado", req.URL.Path, req)
 }
 
+// TotpOK registra a efetivação da sessão via segundo fator (RS-010).
+// Nunca inclui o código (RS-010/066).
+func (r Registro) TotpOK(ctx context.Context, usuario pgtype.UUID, req *http.Request) {
+	r.gravar(ctx, usuario, "totp_ok", "sessao", req)
+}
+
+// TotpFalha registra código inválido sem incluir o código (RS-010/066).
+func (r Registro) TotpFalha(ctx context.Context, usuario pgtype.UUID, req *http.Request) {
+	r.gravar(ctx, usuario, "totp_falha", "sessao", req)
+}
+
+// TotpCadastrado registra a conclusão do cadastro do autenticador (RF-003).
+func (r Registro) TotpCadastrado(ctx context.Context, usuario pgtype.UUID, req *http.Request) {
+	r.gravar(ctx, usuario, "totp_cadastrado", "conta", req)
+}
+
+// TotpDesativado registra o desligamento do 2FA opcional (RF-003).
+func (r Registro) TotpDesativado(ctx context.Context, usuario pgtype.UUID, req *http.Request) {
+	r.gravar(ctx, usuario, "totp_desativado", "conta", req)
+}
+
+// SenhaTrocada registra a troca da própria senha (RS-006/010).
+func (r Registro) SenhaTrocada(ctx context.Context, usuario pgtype.UUID, req *http.Request) {
+	r.gravar(ctx, usuario, "senha_trocada", "conta", req)
+}
+
+// SenhaRedefinida registra a redefinição por admin com referência ao alvo
+// (RS-007/010). Sem senha ou hash no detalhe.
+func (r Registro) SenhaRedefinida(ctx context.Context, admin pgtype.UUID, alvo string, req *http.Request) {
+	r.gravarRecurso(ctx, admin, "senha_redefinida", "usuario:"+alvo, req)
+}
+
+// TotpReiniciado registra o reinício por admin com referência ao alvo
+// (RF-007, RS-008/010). Sem segredo ou código no detalhe.
+func (r Registro) TotpReiniciado(ctx context.Context, admin pgtype.UUID, alvo string, req *http.Request) {
+	r.gravarRecurso(ctx, admin, "totp_reiniciado", "usuario:"+alvo, req)
+}
+
 func (r Registro) gravar(ctx context.Context, usuario pgtype.UUID, acao, recurso string, req *http.Request) {
+	r.gravarRecurso(ctx, usuario, acao, recurso, req)
+}
+
+func (r Registro) gravarRecurso(ctx context.Context, usuario pgtype.UUID, acao, recurso string, req *http.Request) {
 	if r.Queries == nil {
 		return
 	}

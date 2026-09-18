@@ -86,7 +86,7 @@ jobs:
         # Versão espelha mise.toml (F-01: 1.27.1). Sem cache-dependency-path:
         # o cache de módulos é ligado em F-04 com o shell do backend (SRS §27);
         # na F-02 o go.sum já existe (chi + runtime do gerado, §19).
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.27.1"
           cache: false
@@ -160,7 +160,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Setup Go + Task (runner das tasks do Taskfile)
         if: steps.existe.outputs.node == 'true'
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.27.1"
           cache: false
